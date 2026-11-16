@@ -82,35 +82,76 @@ def satt_kurs():
           % (format(data["rates"][-1]["mesos_per_1k_nx"], ","), data["usd_per_1k_nx"]))
 
 
-def tolka_prislista(rader, tolka):
-    """{name in lower case: price} from a pasted list. Understands blocks of
-    name, a line starting with "Cash Shop", then a line that starts with the
-    price (like a price site's table copied from the browser), and plain
-    lines like "Angel Halo<tab>950k" or "Angel Halo: 950k"."""
+# A mesos amount: 950K, 1.1M, 8,999, 2b. Not a percentage, an NX price, a
+# multiplier or a count of sales (those follow the number).
+BELOPP = re.compile(r"(?<![\w.,+−-])(\d{1,3}(?:,\d{3})+|\d+(?:\.\d+)?)\s?([kmb])?(?!\s*(?:%|nx\b|×|x\b|sales?\b))(?![\w.,%])", re.I)
+FYLLNAD = ("cash shop", "volatile", "low data", "too few days", "not on sale now")
+
+
+def belopp_i(rad):
+    """The first mesos amount on a line (at least 100 mesos), or None."""
+    for m in BELOPP.finditer(rad):
+        v = float(m.group(1).replace(",", "")) * {"k": 1e3, "m": 1e6, "b": 1e9}.get((m.group(2) or "").lower(), 1)
+        if v >= 100:
+            return int(round(v))
+    return None
+
+
+def tolka_prislista(rader, mina, alla_namn=()):
+    """{item id: price} for your items, from a pasted list in any layout.
+
+    It starts from the names: every line that is one of your items is an
+    anchor, wherever it stands. The price is the first mesos amount after
+    it, on the same line or the lines below; percentages, NX prices,
+    multipliers, sales counts and filler lines ("Cash Shop", "volatile")
+    are skipped. The search stops at the next item name (any item in the
+    game, when the game's names are known) or at "No sales", so an item
+    without a price never gets the next item's. A name and a price on one
+    line work in either order ("Angel Halo 950k", "950k Angel Halo").
+    mina = {name in lower case: [ids]}."""
     rena = [r.strip() for r in rader if r.strip()]
+    stopp = set(alla_namn) | set(mina)
+    def namn_pa(rad):
+        """The item name a line holds, with any amount and separators taken off."""
+        utan = re.sub(r"[\t;:=|]+", " ", BELOPP.sub(" ", rad)).strip(" -–").lower()
+        return " ".join(utan.split())
     priser = {}
-    for i, r in enumerate(rena[:-2]):
-        if rena[i + 1].lower().startswith("cash shop"):
-            delar = rena[i + 2].split()
-            pris = tolka(delar[0]) if delar else None
+    for i, rad in enumerate(rena):
+        namn = rad.lower() if rad.lower() in mina else namn_pa(rad)
+        if namn not in mina or any(i2 in priser for i2 in mina[namn]):
+            continue
+        pris = belopp_i(rad) if namn != rad.lower() else None
+        for nasta in rena[i + 1:i + 10]:
             if pris:
-                priser[r.lower()] = pris
-    if not priser:
-        for r in rena:
-            m = re.match(r"(.+?)\s*[\t;:=|]\s*([\d.,]+\s*[kmb]?)\s*$", r, re.I)
-            if m and tolka(m.group(2).replace(" ", "")):
-                priser[m.group(1).strip().lower()] = tolka(m.group(2).replace(" ", ""))
+                break
+            lag = nasta.lower()
+            if "no sales" in lag or lag in stopp or namn_pa(nasta) in stopp:
+                break
+            if lag.startswith(FYLLNAD):
+                continue
+            pris = belopp_i(nasta)
+        if pris:
+            for iid in mina[namn]:
+                priser[iid] = pris
     return priser
 
 
 def ange_priser():
     """Today's prices by hand: paste a list, match it to the inventory,
-    show the result, ask where the prices are from, then publish. They
-    become today's point in prices.json and the page's current prices."""
+    show the result, then publish on yes. They become today's point in
+    prices.json and the page's current prices."""
     import gemensamt
     import installningar as inst
     data = inst.data()
     inv = json.load(open(os.path.join(data, "inventory.json"), encoding="utf-8"))["items"]
+    mina = {}
+    for it in inv:
+        mina.setdefault(it["name"].lower(), []).append(it["id"])
+    try:   # every item name in the game, so the search stops at any item
+        from ikoner import katalog
+        alla_namn = {n.lower() for n in katalog()[0]}
+    except Exception:  # noqa: BLE001  (no game files: your own names only)
+        alla_namn = set()
     print("""
   Paste the prices (for example a price site's table copied from the browser,
   or one item per line like "Angel Halo<tab>950k"). Then type END on its own
@@ -126,24 +167,18 @@ def ange_priser():
         if rad.strip().upper() == "END":
             break
         rader.append(rad)
-    lista = tolka_prislista(rader, gemensamt.tolka)
-    if not lista:
-        print("  Found no prices in that. Nothing changed.")
+    traff = tolka_prislista(rader, mina, alla_namn)
+    if not traff:
+        print("  Found none of your items with a price in that. Nothing changed.")
         return
-    traff = {it["id"]: lista[it["name"].lower()] for it in inv if it["name"].lower() in lista}
     saknas = [it["name"] for it in inv if it["id"] not in traff]
     varde = sum(traff[it["id"]] * it["qty"] for it in inv if it["id"] in traff)
-    print("\n  Read %d prices. %d of your %d kinds matched; together they are worth %s mesos."
-          % (len(lista), len(traff), len(inv), format(varde, ",")))
+    print("\n  %d of your %d kinds got a price; together they are worth %s mesos:" % (len(traff), len(inv), format(varde, ",")))
+    for it in sorted((it for it in inv if it["id"] in traff), key=lambda it: -traff[it["id"]] * it["qty"]):
+        print("    %-30s %12s  × %d" % (it["name"][:30], format(traff[it["id"]], ","), it["qty"]))
     if saknas:
         print("  No price for: " + ", ".join(saknas[:12]) + (" …" if len(saknas) > 12 else ""))
         print("  (Those keep their last price.)")
-    if not traff:
-        return
-    kalla = input("  Where are these prices from? It is shown on your page as the source: ").strip()
-    if not kalla:
-        print("  A source is needed, so visitors know where the prices come from. Nothing changed.")
-        return
     if input("  Publish these as today's prices? [y/N] ").strip().lower() not in ("y", "yes", "j", "ja"):
         print("  Nothing changed.")
         return
@@ -155,25 +190,25 @@ def ange_priser():
     sista = pj["updates"][-1]
     if sista["date"] == idag:
         sista["prices"].update(traff)
-        sista["manual"] = kalla
+        sista["manual"] = True
     else:
         pj["updates"].append({"date": idag, "prices": {**{i: p for i, p in sista["prices"].items() if i in antal}, **traff},
-                              "qty": antal, "manual": kalla})
+                              "qty": antal, "manual": True})
     gemensamt.skriv_json(pfil, pj)
     lfil = os.path.join(data, "live.json")
     live = json.load(open(lfil, encoding="utf-8")) if os.path.exists(lfil) else {"items": {}}
     for i, p in traff.items():
         live["items"][i] = {"p": p, "w": "manual"}
-    live.update({"updated": int(time.time()), "manual": kalla, "manual_date": idag})
+    live.update({"updated": int(time.time()), "manual": True, "manual_date": idag})
     gemensamt.skriv_json(lfil, live)
 
     git = ["git", "-C", inst.WEB]
     subprocess.run(git + ["pull", "-q", "--rebase", "--autostash", inst.REMOTES[0], "main"])
     subprocess.run(git + ["add", os.path.relpath(pfil, inst.WEB), os.path.relpath(lfil, inst.WEB)], check=True)
-    subprocess.run(git + ["commit", "-q", "-m", "MapleStory: prices for %d kinds entered by hand (%s)" % (len(traff), kalla)], check=True)
+    subprocess.run(git + ["commit", "-q", "-m", "MapleStory: prices for %d kinds entered by hand" % len(traff)], check=True)
     for r in inst.REMOTES:
         subprocess.run(git + ["push", "-q", r, "main"], check=True)
-    print("  Published: %d prices from %s, today's value %s mesos." % (len(traff), kalla, format(varde, ",")))
+    print("  Published: %d prices entered by hand, today's value of those %s mesos." % (len(traff), format(varde, ",")))
 
 
 def main():
