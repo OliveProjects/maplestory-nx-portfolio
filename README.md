@@ -117,6 +117,7 @@ What do you want to do?
   - **new:** what you paid. Press Enter if you bought it for NX or got it.
 - **3** when the game's rate moves: how many mesos 1k NX costs, and what 1k NX costs in dollars from Nexon. The page's NX and $ tiles and the $ chart use it, and every day keeps the rate it had, so the $ line can differ from the mesos line.
 - **4** after you downloaded a newer version of this repo.
+- **5** to enter today's prices yourself: paste a price list (a price site's table copied from the browser, or one item per line like `Angel Halo<tab>950k`) and end with a line saying `END`. The script matches the names to your inventory, shows what it found and the total, asks where the prices are from (shown on your page as the source) and publishes only if you say yes. Check the source's terms before you publish its prices. If the hourly maplestory.market job runs, it replaces these prices within the hour, so this is for when you have no key or the market has no data.
 
 ### Exact purchase prices afterwards (optional)
 
