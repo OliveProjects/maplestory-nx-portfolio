@@ -1,0 +1,16 @@
+# Hemligt eller API-data: får aldrig i ett publikt repo (API-villkoren).
+nyckel.txt
+historik/
+agare/
+dagssvar/
+timmar.json
+# Byggs eller skrivs om vid varje körning.
+ikonbibliotek.npz
+senaste_inventering/
+senaste_synk.txt
+inter.ttf
+__pycache__/
+# Dina egna inställningar och ditt inventarie (website_creator.py skriver dem).
+installningar.json
+deco.json
+kandidater/

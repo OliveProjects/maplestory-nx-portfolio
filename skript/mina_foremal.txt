@@ -1,0 +1,4 @@
+# En rad per sort: antalet och namnet som spelet skriver det, eller id:t.
+# Rader som börjar med # hoppas över. Byt ut exemplen mot ditt eget inventarie.
+2 Angel Wand
+1 White Label Ring

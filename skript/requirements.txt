@@ -1,0 +1,5 @@
+# Datorn med spelet (Windows): allt nedan.
+# Servern: bara Pillow (för delningsbilden); resten är standardbiblioteket.
+Pillow>=10.1
+numpy
+opencv-python

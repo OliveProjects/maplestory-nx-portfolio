@@ -1,0 +1,13 @@
+{
+ "karaktarer": ["MinKaraktar"],
+ "butik": "MinKaraktar",
+ "ref": "",
+ "sajtnamn": "My site",
+ "sajt_url": "https://example.com/maplestory/",
+ "tidszon": "Europe/Stockholm",
+ "webbrepo": "C:\\Users\\namn\\min-sajt",
+ "undermapp": "maplestory",
+ "git_remotes": ["origin"],
+ "wz_data": "C:\\Nexon\\Library\\maplestorycw\\appdata\\Data",
+ "user_agent": "example.com/maplestory"
+}
