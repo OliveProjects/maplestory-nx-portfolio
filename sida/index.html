@@ -142,6 +142,12 @@ async function load() {
     });
     const total = rows.reduce((s, r) => s + r.value, 0);
     document.getElementById('total').textContent = whole(total);
+    if (!total) {
+        // Before the first prices: the hourly job fetches each item's history,
+        // five an hour, and builds the prices when all are fetched.
+        document.getElementById('total').textContent = 'Waiting for prices';
+        document.getElementById('updated').textContent = `The first prices come after about ${Math.ceil(rows.length / 5)} hours.`;
+    }
     const when = live && live.updated ? live.updated * 1000 : null;
     if (when) document.getElementById('updated').textContent = 'Updated ' +
         new Date(when).toLocaleString('en-GB', { day: 'numeric', month: 'short', hour: '2-digit', minute: '2-digit', timeZone: TZ }) + '.';

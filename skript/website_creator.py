@@ -126,8 +126,9 @@ def skapa():
     print("\nYour API key from maplestory.market (Account page). It is stored as an encrypted")
     print("repo secret and in skript/nyckel.txt on this computer, never in the page or in git.")
     print("When you ask for the key, give the page's address below: their daily check reads it.")
-    sajt_url = ("https://%s.github.io/maplestory/" % login if repo.lower() == "%s.github.io" % login.lower()
-                else "https://%s.github.io/%s/maplestory/" % (login, repo))
+    agare = login.lower()   # GitHub Pages addresses are lower case
+    sajt_url = ("https://%s.github.io/maplestory/" % agare if repo.lower() == "%s.github.io" % agare
+                else "https://%s.github.io/%s/maplestory/" % (agare, repo))
     print("  The page will be at: " + sajt_url)
     nyckel = getpass.getpass("API key (hidden while you type): ").strip()
     if not nyckel:

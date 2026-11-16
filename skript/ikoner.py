@@ -44,10 +44,19 @@ def namn_till_id():
 
 
 def ikon(kat, iid, arkiv={}):
-    if kat not in arkiv:
-        arkiv[kat] = WzArchive(os.path.join(DATA, "Character", kat,
-                                            "_Canvas", "_Canvas_000.wz"))
-    post = arkiv[kat].find("%08d.img" % int(iid))
+    """Ikonen ligger i _Canvas under den fil som föremålets info/iconRaw
+    länkar till. Oftast föremålets egen, men färgvarianter delar ikon med en
+    annan (Black Dress Shoes 1077000 -> 01072999.img)."""
+    for namn in (kat + "_000.wz", os.path.join("_Canvas", "_Canvas_000.wz")):
+        if (kat, namn) not in arkiv:
+            arkiv[kat, namn] = WzArchive(os.path.join(DATA, "Character", kat, namn))
+    fil = "%08d.img" % int(iid)
+    post = arkiv[kat, kat + "_000.wz"].find(fil)
+    if post is not None:
+        lank = (post.parse().get("info", {}).get("iconRaw") or {}).get("link", "")
+        if lank.startswith("Character/%s/_Canvas/" % kat) and ".img/" in lank:
+            fil = lank.split("/")[3]
+    post = arkiv[kat, os.path.join("_Canvas", "_Canvas_000.wz")].find(fil)
     if post is None:
         return None
     info = post.parse().get("info", {})
