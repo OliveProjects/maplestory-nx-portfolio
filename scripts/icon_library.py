@@ -1,9 +1,9 @@
 """Bygger ett bibliotek med ikonen för varje cash-föremål ur klientens WZ-filer.
 
-  python ikonbibliotek.py
+  python icon_library.py
 
-Skriver ikonbibliotek.npz bredvid skriptet: id, kategori, namn och ikonen
-(iconRaw, RGBA, inklistrad uppe till vänster i en 40x40-ruta). bildmatch.py
+Skriver icon_library.npz bredvid skriptet: id, kategori, namn och ikonen
+(iconRaw, RGBA, inklistrad uppe till vänster i en 40x40-ruta). icon_match.py
 känner igen inventariets rutor mot det. Bygg om efter en speluppdatering.
 """
 import glob
@@ -13,13 +13,13 @@ import sys
 import numpy as np
 from PIL import Image
 
-import installningar as inst
+import settings as inst
 from wz.img_parser import decode_canvas
 from wz.wz_archive import WzArchive
 
 DATA = inst.WZ_DATA
 HERE = os.path.dirname(os.path.abspath(__file__))
-UT = os.path.join(HERE, "ikonbibliotek.npz")
+UT = os.path.join(HERE, "icon_library.npz")
 # Kategorier som kan ligga i Deco-fliken. Ansikte, frisyr, afterimage och
 # riddjur är aldrig föremål där.
 KATEGORIER = ["Accessory", "Cap", "Cape", "Coat", "Glove", "Longcoat", "Pants",

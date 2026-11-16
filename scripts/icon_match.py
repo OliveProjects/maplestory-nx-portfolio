@@ -1,10 +1,10 @@
 """Känner igen föremålen i inventariets rutor på bilden, mot spelets egna ikoner.
 
-  python bildmatch.py <mapp med vy_*.png>      skriv ut vad som ligger i rutorna
+  python icon_match.py <mapp med vy_*.png>      skriv ut vad som ligger i rutorna
 
 Varje ruta skalas ned till spelets egen upplösning (klienten ritar ikonerna
 2,75 gånger förstorade i 3840x2160, uppmätt 2026-10-26) och jämförs med alla
-ikoner i ikonbibliotek.npz, bara på ikonens egna pixlar (alfakanalen som
+ikoner i icon_library.npz, bara på ikonens egna pixlar (alfakanalen som
 mask). Ingen hovring och ingen OCR behövs, och ett namn som finns på flera
 föremål (White Jeans) avgörs av bilden.
 """
@@ -16,7 +16,7 @@ import sys
 import cv2
 import numpy as np
 
-from inventera import DX, DY, KOLUMNER, RADER, ar_tom
+from scan_inventory import DX, DY, KOLUMNER, RADER, ar_tom
 
 HERE = os.path.dirname(os.path.abspath(__file__))
 SKALA = 2.75
@@ -27,7 +27,7 @@ TAK = 70.0 ** 2       # tak för felet per pixel: brickan och antalet ska inte d
 
 
 class Bibliotek:
-    def __init__(self, fil=os.path.join(HERE, "ikonbibliotek.npz")):
+    def __init__(self, fil=os.path.join(HERE, "icon_library.npz")):
         d = np.load(fil)
         self.ids, self.kats, self.namn = d["ids"], d["kats"], d["namn"]
         self.mallar = []

@@ -1,6 +1,6 @@
 """Tar en skärmbild av MapleStory-fönstrets klientyta och sparar den som PNG.
 
-Användning: python skarmbild.py <ut.png>
+Användning: python screenshot.py <ut.png>
 Skriver ut om spelet ligger överst; ligger något annat över fönstret blir
 bilden av det, inte av spelet.
 """

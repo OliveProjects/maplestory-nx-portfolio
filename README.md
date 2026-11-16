@@ -18,7 +18,7 @@ Code comments are in Swedish; everything the scripts print is in English.
 ```
 Your PC (Windows, with the game)          GitHub (free)
 ─────────────────────────────────          ─────────────────────────────────────────
-Synka.bat                                  your site repo, e.g. maplestory-portfolio
+Sync.bat                                  your site repo, e.g. maplestory-portfolio
   reads your Deco tab from the screen  ──▶   maplestory/        the page and its data
   (or from a text list), recognises          .portfolio/        the price scripts
   each item from the game's own icons,       .github/workflows/ the hourly price job
@@ -51,12 +51,12 @@ You only need a GitHub account and your own API key. No server: GitHub runs the 
 
 ## 2. Set up
 
-Download this repo (Code → Download ZIP, or `git clone`) and open a terminal in the `skript` folder:
+Download this repo (Code → Download ZIP, or `git clone`) and open a terminal in the `scripts` folder:
 
 ```
 pip install -r requirements.txt
 python website_creator.py
-python ikonbibliotek.py
+python icon_library.py
 ```
 
 - **`website_creator.py`** asks a few questions (repo name, site name, your characters, the API key, the link code, your time zone) and then:
@@ -64,8 +64,8 @@ python ikonbibliotek.py
   - puts the page, the price scripts and the hourly job in it, and pushes
   - stores the key as the repo secret `MAPLESTORY_MARKET_KEY`
   - turns on GitHub Pages, so the page is at `https://YOURNAME.github.io/REPO/maplestory/`
-  - writes `installningar.json` here, so that the sync knows where to push
-- **`ikonbibliotek.py`** builds the icon library from the game files. It takes a few seconds. Run it again after a big game update.
+  - writes `settings.json` here, so that the sync knows where to push
+- **`icon_library.py`** builds the icon library from the game files. It takes a few seconds. Run it again after a big game update.
 
 ## 3. The first sync
 
@@ -73,20 +73,20 @@ What you own the first time becomes your starting holdings. The script asks what
 
 **From the screen** (3840×2160 only):
 1. Open **Item Inventory** in the game and select the **Deco** tab.
-2. Double-click `Synka.bat` and pick **1**.
+2. Double-click `Sync.bat` and pick **1**.
 3. Accept the UAC prompt (the game only takes mouse input from a program running as administrator), click in the game within a minute, and don't touch the mouse until it says you can let go.
 
 The script finds the inventory wherever it sits in the window and scrolls through the tab. It then recognises every item from the game's own icons, shows what changed, and asks before it publishes. In another resolution it stops at once instead of clicking in the wrong place.
 
 **From a list** (always works):
-1. Write your inventory in `mina_foremal.txt`, one line per kind with the count and the name as the game writes it:
+1. Write your inventory in `my_items.txt`, one line per kind with the count and the name as the game writes it:
    ```
    2 Angel Wand
    1 1112100
    ```
-2. Double-click `Synka.bat` and pick **2** (or double-click `Synka lista.bat`).
+2. Double-click `Sync.bat` and pick **2** (or double-click `Sync list.bat`).
 
-If several items share a name, for example Cat Hat or White Label Ring, the script shows their ids and saves their icons in the `kandidater` folder. Write the id on the line instead of the name.
+If several items share a name, for example Cat Hat or White Label Ring, the script shows their ids and saves their icons in the `candidates` folder. Write the id on the line instead of the name.
 
 The page appears straight away, but without prices until the hourly job has fetched them.
 
@@ -101,12 +101,12 @@ You can start a run by hand under Actions → Prices → Run workflow.
 
 ## Day to day
 
-Double-click `Synka.bat`. It asks what you want to do:
+Double-click `Sync.bat`. It asks what you want to do:
 
 ```
 What do you want to do?
   1  Scan the Deco tab in the game
-  2  Sync from your list (mina_foremal.txt)
+  2  Sync from your list (my_items.txt)
   3  Set the mesos : NX rate
   4  Update your site to this version
   q  Quit
@@ -134,9 +134,9 @@ The page is `maplestory/index.html` in your site repo, a plain file with its col
 ## The folders
 
 ```
-skript/   everything that runs on your PC, plus the price scripts that
+scripts/   everything that runs on your PC, plus the price scripts that
           website_creator.py copies to your site repo
-sida/     the page template (index.html)
+page/     the page template (index.html)
 ```
 
 The main scripts:
@@ -144,23 +144,23 @@ The main scripts:
 | Script | What it does |
 |---|---|
 | `website_creator.py` | creates your site repo, the page, the hourly job and the secret |
-| `meny.py` (`Synka.bat`) | the menu: scan, sync from the list, set the NX rate, update the site |
-| `synka.py` | reads the Deco tab, recognises the items, publishes the changes |
-| `inventera.py` | finds the inventory in the game window and scrolls through it |
-| `gruppera.py`, `bildmatch.py` | group the slots by icon and match them against the game's icons |
-| `ikonbibliotek.py`, `ikoner.py` | read the icons and names from the game's WZ files |
-| `hamta_historik.py` | fetches each item's hourly price history from maplestory.market |
-| `marknadspriser.py` | turns the history into prices: the median of what actually sold |
-| `delning.py` | the share image and the page's Open Graph tags |
-| `actions_steg.py` | the hourly job on GitHub Actions |
-| `kor.sh` | the same job on your own Linux server, if you prefer that to Actions |
+| `menu.py` (`Sync.bat`) | the menu: scan, sync from the list, set the NX rate, update the site |
+| `sync.py` | reads the Deco tab, recognises the items, publishes the changes |
+| `scan_inventory.py` | finds the inventory in the game window and scrolls through it |
+| `group_slots.py`, `icon_match.py` | group the slots by icon and match them against the game's icons |
+| `icon_library.py`, `icons.py` | read the icons and names from the game's WZ files |
+| `fetch_history.py` | fetches each item's hourly price history from maplestory.market |
+| `market_prices.py` | turns the history into prices: the median of what actually sold |
+| `share_image.py` | the share image and the page's Open Graph tags |
+| `actions_job.py` | the hourly job on GitHub Actions |
+| `run_hourly.sh` | the same job on your own Linux server, if you prefer that to Actions |
 
 ## If something goes wrong
 
-- **"the game's client area is … but the grid is measured in 3840x2160":** use the list (`Synka lista.bat`), or re-measure the sizes at the top of `inventera.py`, `mall_flikar.png` and `SKALA` in `bildmatch.py`.
+- **"the game's client area is … but the grid is measured in 3840x2160":** use the list (`Sync list.bat`), or re-measure the sizes at the top of `scan_inventory.py`, `tab_template.png` and `SKALA` in `icon_match.py`.
 - **"Could not be recognised with certainty":** nothing was published. Use the list, or run again with the inventory fully visible.
 - **"the game is no longer in front, stopping":** another window came on top. Keep the game in front and don't touch the mouse.
 - **The page has no prices after a day:** open the Actions tab. "The secret MAPLESTORY_MARKET_KEY is missing" means the key was not stored: add it under Settings → Secrets and variables → Actions. A red run shows its error there.
 - **429 from the API:** the hour's calls are used up. The job tries again next hour.
-- **An item has another id on the market than in the game:** add it to `TILL_MARKNAD` in `hamta_historik.py` and to `MARKET_ID` in the page. White Label Ring is already there.
+- **An item has another id on the market than in the game:** add it to `TILL_MARKNAD` in `fetch_history.py` and to `MARKET_ID` in the page. White Label Ring is already there.
 - **Never fetch from other price sites automatically** without reading their terms.

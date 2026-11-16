@@ -1,16 +1,16 @@
 # Hemligt eller API-data: får aldrig i ett publikt repo (API-villkoren).
-nyckel.txt
-historik/
-agare/
-dagssvar/
-timmar.json
+api_key.txt
+history/
+owners/
+daily/
+hours.json
 # Byggs eller skrivs om vid varje körning.
-ikonbibliotek.npz
-senaste_inventering/
-senaste_synk.txt
+icon_library.npz
+last_scan/
+last_sync.txt
 inter.ttf
 __pycache__/
 # Dina egna inställningar och ditt inventarie (website_creator.py skriver dem).
-installningar.json
+settings.json
 deco.json
-kandidater/
+candidates/

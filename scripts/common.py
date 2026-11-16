@@ -1,12 +1,12 @@
-"""Det som synka.py och marknadspriser.py delar: filerna i webbrepot,
+"""Det som sync.py och market_prices.py delar: filerna i webbrepot,
 sidans inventory.json och tolkningen av priser som 480k eller 1.2m.
 
-Skriver i webbrepot (undermappen ur installningar.json):
+Skriver i webbrepot (undermappen ur settings.json):
   data/inventory.json  föremål och antal, ur deco.json
   data/prices.json     en post per datum med priser och antal. Poster med
-                       "inventory": true kommer från synka.py och bär förra
+                       "inventory": true kommer från sync.py och bär förra
                        dagens priser med nya antal.
-Ikonerna läggs i icons/ av ikoner.py.
+Ikonerna läggs i icons/ av icons.py.
 """
 import json
 import os
@@ -14,7 +14,7 @@ import re
 
 from PIL import Image
 
-import installningar as inst
+import settings as inst
 
 HERE = os.path.dirname(os.path.abspath(__file__))
 WEB = inst.WEB
@@ -45,7 +45,7 @@ def skriv_inventory():
     for f in deco["foremal"]:
         ikon = os.path.join(SIDA, "icons", f["id"] + ".png")
         if not os.path.exists(ikon):
-            raise SystemExit("ikon saknas för %s, kör ikoner.py först" % f["namn"])
+            raise SystemExit("ikon saknas för %s, kör icons.py först" % f["namn"])
         w, h = Image.open(ikon).size
         items.append({"id": f["id"], "name": f["namn"], "qty": f["antal"],
                       "slot": PLATS.get(f["kategori"], f["kategori"]),

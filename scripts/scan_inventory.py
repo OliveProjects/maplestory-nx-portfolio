@@ -6,12 +6,12 @@ spelet bara tar emot inmatning från ett program med samma behörighetsnivå.
 
 UPPMÄTT I 3840x2160 (spelets klientyta i 4K, där spelet ritar inventariet
 2,75 gånger förstorat). Rutnätets mått nedan (X0, DX, Y0, DY, CELL),
-mall_flikar.png, DECO_FLIK och SKALA i bildmatch.py hör till just den
+tab_template.png, DECO_FLIK och SKALA i icon_match.py hör till just den
 upplösningen. Med en annan upplösning stannar skriptet direkt i stället för
 att peka runt på fel ställen; mät då om måtten eller skriv inventariet för
-hand (synka.py --lista, se LASMIG.md).
+hand (sync.py --lista, se LASMIG.md).
 
-  python inventera.py <utmapp>
+  python scan_inventory.py <utmapp>
 
 Hovrar en hel sida, scrollar sex rader (ett hjulsteg = en rad) och hovrar
 de rader som är nya. Varje hjulsteg kontrolleras för sig: ett steg som spelet
@@ -33,7 +33,7 @@ import time
 import numpy as np
 from PIL import ImageGrab
 
-from skarmbild import hitta_fonster
+from screenshot import hitta_fonster
 
 u = ctypes.windll.user32
 
@@ -121,7 +121,7 @@ DECO_FLIK = (2900, 488, 2990, 532)   # Deco-flikens yta i klientytan
 # Flikraden Equip..Cash (utan Deco, så att vald flik inte spelar roll),
 # urklippt där den låg 2026-10-25. Rutnätets X0/Y0 och DECO_FLIK ovan hör
 # till just det läget; hitta_inventariet flyttar dem dit inventariet ligger nu.
-MALL_FLIKAR = os.path.join(os.path.dirname(os.path.abspath(__file__)), "mall_flikar.png")
+MALL_FLIKAR = os.path.join(os.path.dirname(os.path.abspath(__file__)), "tab_template.png")
 MALL_LAGE = (2424, 486)
 
 
@@ -197,7 +197,7 @@ def main(ut):
     fel = None
     if (yta.right, yta.bottom) != UPPMATT:
         fel = ("the game's client area is %dx%d, but the grid is measured in %dx%d. "
-               "Run the game in that resolution or use synka.py --lista (Synka lista.bat)."
+               "Run the game in that resolution or use sync.py --lista (Sync list.bat)."
                % (yta.right, yta.bottom, UPPMATT[0], UPPMATT[1]))
     if not fel:
         fel = hitta_inventariet(spel)
@@ -275,7 +275,7 @@ def main(ut):
 
 if __name__ == "__main__":
     ctypes.windll.shcore.SetProcessDpiAwareness(2)
-    # --utan-hovring: bara vyerna, inga tooltipar. synka.py känner igen
-    # föremålen på bilden (bildmatch.py) och behöver inte hovra.
+    # --utan-hovring: bara vyerna, inga tooltipar. sync.py känner igen
+    # föremålen på bilden (icon_match.py) och behöver inte hovra.
     UTAN_HOVRING = "--utan-hovring" in sys.argv
     main(sys.argv[1])

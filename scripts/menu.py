@@ -1,7 +1,7 @@
-"""What Synka.bat shows: a menu of what you can do.
+"""What Sync.bat shows: a menu of what you can do.
 
-  1  Scan the Deco tab in the game        (synka.py)
-  2  Sync from your list                  (synka.py --lista mina_foremal.txt)
+  1  Scan the Deco tab in the game        (sync.py)
+  2  Sync from your list                  (sync.py --lista my_items.txt)
   3  Set the mesos : NX rate              (data/nx_rates.json on your site)
   4  Update your site to this version     (website_creator.py --update)
   5  Enter prices yourself                (paste a price list; today's prices)
@@ -11,7 +11,7 @@ The rate is how many mesos 1k NX costs in the game right now, plus what
 chart use it. Each change is saved with today's date, so the $ chart
 values every day at the rate that applied then.
 
-    python meny.py
+    python menu.py
 """
 import datetime
 import json
@@ -26,7 +26,7 @@ STANDARD = {"mesos_per_1k_nx": 20000, "usd_per_1k_nx": 1}
 
 
 def kurser_fil():
-    import installningar as inst
+    import settings as inst
     return os.path.join(inst.data(), "nx_rates.json"), inst
 
 
@@ -37,7 +37,7 @@ def las_kurser(fil):
 
 
 def satt_kurs():
-    import gemensamt
+    import common
     fil, inst = kurser_fil()
     data = las_kurser(fil)
     nu = data["rates"][-1]["mesos_per_1k_nx"] if data["rates"] else None
@@ -46,7 +46,7 @@ def satt_kurs():
         print("  The rate now: 1k NX = %s mesos (since %s), 1k NX = $%s from Nexon."
               % (format(nu, ","), data["rates"][-1]["from"], data.get("usd_per_1k_nx", 1)))
     svar = input("  How many mesos does 1k NX cost in the game now? (e.g. 20k, Enter = keep): ").strip()
-    ny = gemensamt.tolka(svar) if svar else None
+    ny = common.tolka(svar) if svar else None
     if svar and not ny:
         print("  Could not read that. Write a number, e.g. 20000 or 20k.")
         return
@@ -140,15 +140,15 @@ def ange_priser():
     """Today's prices by hand: paste a list, match it to the inventory,
     show the result, then publish on yes. They become today's point in
     prices.json and the page's current prices."""
-    import gemensamt
-    import installningar as inst
+    import common
+    import settings as inst
     data = inst.data()
     inv = json.load(open(os.path.join(data, "inventory.json"), encoding="utf-8"))["items"]
     mina = {}
     for it in inv:
         mina.setdefault(it["name"].lower(), []).append(it["id"])
     try:   # every item name in the game, so the search stops at any item
-        from ikoner import katalog
+        from icons import katalog
         alla_namn = {n.lower() for n in katalog()[0]}
     except Exception:  # noqa: BLE001  (no game files: your own names only)
         alla_namn = set()
@@ -194,13 +194,13 @@ def ange_priser():
     else:
         pj["updates"].append({"date": idag, "prices": {**{i: p for i, p in sista["prices"].items() if i in antal}, **traff},
                               "qty": antal, "manual": True})
-    gemensamt.skriv_json(pfil, pj)
+    common.skriv_json(pfil, pj)
     lfil = os.path.join(data, "live.json")
     live = json.load(open(lfil, encoding="utf-8")) if os.path.exists(lfil) else {"items": {}}
     for i, p in traff.items():
         live["items"][i] = {"p": p, "w": "manual"}
     live.update({"updated": int(time.time()), "manual": True, "manual_date": idag})
-    gemensamt.skriv_json(lfil, live)
+    common.skriv_json(lfil, live)
 
     git = ["git", "-C", inst.WEB]
     subprocess.run(git + ["pull", "-q", "--rebase", "--autostash", inst.REMOTES[0], "main"])
@@ -213,14 +213,14 @@ def ange_priser():
 
 def main():
     sys.stdout.reconfigure(encoding="utf-8")
-    if not os.path.exists(os.path.join(HERE, "installningar.json")):
+    if not os.path.exists(os.path.join(HERE, "settings.json")):
         print("No site yet. Run python website_creator.py first.")
         return
     while True:
         print("""
 What do you want to do?
   1  Scan the Deco tab in the game
-  2  Sync from your list (mina_foremal.txt)
+  2  Sync from your list (my_items.txt)
   3  Set the mesos : NX rate
   4  Update your site to this version
   5  Enter prices yourself (paste a price list)
@@ -228,9 +228,9 @@ What do you want to do?
         val = input("> ").strip().lower()
         if val == "1":
             print("\n  Open Item Inventory in the game and select the Deco tab first.")
-            subprocess.run([sys.executable, os.path.join(HERE, "synka.py")])
+            subprocess.run([sys.executable, os.path.join(HERE, "sync.py")])
         elif val == "2":
-            subprocess.run([sys.executable, os.path.join(HERE, "synka.py"), "--lista", os.path.join(HERE, "mina_foremal.txt")])
+            subprocess.run([sys.executable, os.path.join(HERE, "sync.py"), "--lista", os.path.join(HERE, "my_items.txt")])
         elif val == "3":
             satt_kurs()
         elif val == "4":

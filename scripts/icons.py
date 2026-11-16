@@ -1,7 +1,7 @@
 """Hämtar ikonen för varje föremål i deco.json ur klientens WZ-filer.
 
-  python ikoner.py            (ikonerna hamnar i sidans icons/)
-  python ikoner.py <utmapp>
+  python icons.py            (ikonerna hamnar i sidans icons/)
+  python icons.py <utmapp>
 
 Namnet slås upp i String/Eqp.img (under ClassicWorld), ikonen ligger i
 Character/<kategori>/_Canvas/_Canvas_000.wz som <id>.img/info/iconRaw.
@@ -15,7 +15,7 @@ import sys
 
 from PIL import Image
 
-import installningar as inst
+import settings as inst
 from wz.img_parser import decode_canvas
 from wz.wz_archive import WzArchive
 
@@ -65,7 +65,7 @@ def ikon(kat, iid, arkiv={}):
 
 
 def main(ut):
-    # Inifrån synka.py är stdout loggskrivaren (Dubbel), som redan är UTF-8.
+    # Inifrån sync.py är stdout loggskrivaren (Dubbel), som redan är UTF-8.
     if hasattr(sys.stdout, "reconfigure"):
         sys.stdout.reconfigure(encoding="utf-8")
     os.makedirs(ut, exist_ok=True)

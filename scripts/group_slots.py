@@ -1,6 +1,6 @@
 """Grupperar inventarierutorna efter ikon och räknar hur många av varje.
 
-  python gruppera.py <mapp med vy_*.png> <ocr.json>
+  python group_slots.py <mapp med vy_*.png> <ocr.json>
 
 Ikonerna jämförs i stället för OCR-texten, eftersom tooltipen för de högra
 kolumnerna öppnas åt vänster och urklippet då fångar jämförelsen med det
@@ -16,7 +16,7 @@ import sys
 import numpy as np
 from PIL import Image
 
-from inventera import CELL, DX, DY, KOLUMNER, RADER, ar_tom
+from scan_inventory import CELL, DX, DY, KOLUMNER, RADER, ar_tom
 
 GRANS = 20   # medelavvikelse efter passning; olika föremål ger över 70
 GLAPP = 10   # rutnätets steg är inte exakt DX/DY, så sök passning ±GLAPP px
@@ -40,7 +40,7 @@ def avstand(a, b):
 def grupper(mapp, ocrfil=None):
     """[{"rutor": [(rad, kol)], "texter": [(kol, [rader])]}], en per ikon,
     i inventariets ordning. texter är OCR-läsningarna för gruppens rutor
-    (tomma utan ocrfil; synka.py känner igen på bilden i stället)."""
+    (tomma utan ocrfil; sync.py känner igen på bilden i stället)."""
     # vy_NN.png: inventariets rad NN står överst i vyn.
     vyer = {int(re.findall(r"\d+", os.path.basename(f))[0]): f
             for f in glob.glob(os.path.join(mapp, "vy_[0-9]*.png"))}

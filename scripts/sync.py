@@ -1,9 +1,9 @@
 """Synkar Deco-fliken till sidan.
 
-  python synka.py                   inventera, visa skillnaden, fråga, publicera
-  python synka.py --ja              publicera utan att fråga
-  python synka.py --fran <mapp>     använd en befintlig inventering (vy_*.png)
-  python synka.py --lista <fil>     inventariet ur en textfil i stället för
+  python sync.py                   inventera, visa skillnaden, fråga, publicera
+  python sync.py --ja              publicera utan att fråga
+  python sync.py --fran <mapp>     använd en befintlig inventering (vy_*.png)
+  python sync.py --lista <fil>     inventariet ur en textfil i stället för
                                     skärmen (vilken upplösning som helst)
 
 Listfilen har en rad per sort: antalet och sedan namnet som spelet skriver
@@ -21,11 +21,11 @@ program som körs som administratör), klicka sedan i spelet om det tappat
 fokus, och rör inte musen förrän det är klart.
 
 Steg:
-  1. inventera.py --utan-hovring (som admin): letar upp inventariet,
+  1. scan_inventory.py --utan-hovring (som admin): letar upp inventariet,
      kontrollerar att Deco-fliken är vald, scrollar igenom och sparar vyerna
-  2. gruppera.py: grupperar rutorna efter ikon och räknar
-  3. bildmatch.py: varje grupp känns igen mot spelets egna ikoner
-     (ikonbibliotek.npz, byggt ur WZ-filerna med ikonbibliotek.py)
+  2. group_slots.py: grupperar rutorna efter ikon och räknar
+  3. icon_match.py: varje grupp känns igen mot spelets egna ikoner
+     (icon_library.npz, byggt ur WZ-filerna med icon_library.py)
   4. skillnaden mot förra inventeringen visas; inget publiceras utan ja
   5. deco.json, ikoner, inventory.json och aktivitetsloggen skrivs, dagens
      värdepunkt får de nya antalen, och allt committas och pushas
@@ -47,11 +47,11 @@ import urllib.error
 HERE = os.path.dirname(os.path.abspath(__file__))
 sys.path.insert(0, HERE)
 
-import gemensamt  # noqa: E402
-import installningar as inst  # noqa: E402
-from gemensamt import DECO, MANADER, SIDA, WEB, skriv_json  # noqa: E402
-from hamta_historik import TILL_MARKNAD  # noqa: E402
-from marknadspriser import api  # noqa: E402
+import common  # noqa: E402
+import settings as inst  # noqa: E402
+from common import DECO, MANADER, SIDA, WEB, skriv_json  # noqa: E402
+from fetch_history import TILL_MARKNAD  # noqa: E402
+from market_prices import api  # noqa: E402
 
 ACTIVITY = os.path.join(SIDA, "data", "activity.json")
 # Kvot mellan näst bästa och bästa föremålets fel. Rätt föremål låg på
@@ -68,13 +68,13 @@ def steg(nr, text):
 
 
 def pagar(text):
-    """En rad som skrivs över, bara i fönstret (inte i senaste_synk.txt)."""
+    """En rad som skrivs över, bara i fönstret (inte i last_sync.txt)."""
     sys.__stdout__.write("\r  " + text.ljust(58))
     sys.__stdout__.flush()
 
 
 def sluta(text):
-    """Avbryt med ett meddelande som också hamnar i senaste_synk.txt
+    """Avbryt med ett meddelande som också hamnar i last_sync.txt
     (SystemExit med text går till stderr och hade saknats där)."""
     print(text)
     sys.exit(1)
@@ -88,7 +88,7 @@ def inventera(ut):
     print("  Don't touch the mouse until it says you can let go.")
     kommando = ("Start-Process -FilePath '%s' -ArgumentList '\"%s\"','\"%s\"','--utan-hovring' "
                 "-WorkingDirectory '%s' -Verb RunAs -Wait -WindowStyle Minimized"
-                % (sys.executable, os.path.join(HERE, "inventera.py"), ut, HERE))
+                % (sys.executable, os.path.join(HERE, "scan_inventory.py"), ut, HERE))
     subprocess.run(["powershell", "-NoProfile", "-Command", kommando], check=True)
     logg = os.path.join(ut, "logg.txt")
     text = open(logg, encoding="utf-8").read() if os.path.exists(logg) else ""
@@ -107,11 +107,11 @@ def kanna_igen(mapp):
     start = time.time()
     if not any(f.startswith("vy_") for f in os.listdir(mapp)):
         sluta("  No screenshots in %s: the scan never finished." % mapp)
-    if not os.path.exists(os.path.join(HERE, "ikonbibliotek.npz")):
-        sluta("ikonbibliotek.npz is missing: run python ikonbibliotek.py first.")
+    if not os.path.exists(os.path.join(HERE, "icon_library.npz")):
+        sluta("icon_library.npz is missing: run python icon_library.py first.")
     pagar("Loading the game's icons ...")
-    from bildmatch import Bibliotek, kanna_igen_grupp, rutor
-    from gruppera import grupper
+    from icon_match import Bibliotek, kanna_igen_grupp, rutor
+    from group_slots import grupper
     bib = Bibliotek()
     pagar("Grouping the slots by icon ...")
     fonster = {(g, c): f for g, c, f in rutor(mapp)}
@@ -136,7 +136,7 @@ def kanna_igen(mapp):
 def ur_lista(fil):
     """Som kanna_igen, men ur en textfil med "antal namn" eller "antal id"
     per rad. Namnen slås upp i spelets egna filer."""
-    from ikoner import katalog
+    from icons import katalog
     per_namn, per_id = katalog()
     hittat, oklara = {}, []
     for nr, rad in enumerate(open(fil, encoding="utf-8-sig"), 1):
@@ -161,8 +161,8 @@ def ur_lista(fil):
                 continue
             if len(kandidater) > 1:
                 # Ikonerna sparas, så att det går att se vilket som är vilket.
-                from ikoner import ikon
-                mapp = os.path.join(HERE, "kandidater")
+                from icons import ikon
+                mapp = os.path.join(HERE, "candidates")
                 os.makedirs(mapp, exist_ok=True)
                 for k, i in kandidater:
                     bild = ikon(k, i)
@@ -202,7 +202,7 @@ def butiksforsaljningar():
 
 
 class Dubbel:
-    """Skriver allt till både fönstret och senaste_synk.txt, så att
+    """Skriver allt till både fönstret och last_sync.txt, så att
     körningen går att läsa i efterhand."""
     def __init__(self, *strommar):
         self.strommar = strommar
@@ -236,15 +236,15 @@ def forsta_gangen(hittat, args):
     snitt = None
     if "--ja" not in args:
         svar = input("What did the items cost on average each, in mesos? (e.g. 8k, Enter = don't know) ")
-        snitt = gemensamt.tolka(svar) if svar.strip() else None
+        snitt = common.tolka(svar) if svar.strip() else None
     idag = datetime.date.today().isoformat()
     skriv_json(DECO, {"datum": idag, "foremal": [{"namn": n, "antal": a, "kategori": k, "id": i}
                                                  for i, (n, k, a) in hittat.items()]})
-    import ikoner
-    ikoner.main(os.path.join(SIDA, "icons"))
-    items = gemensamt.skriv_inventory()
+    import icons
+    icons.main(os.path.join(SIDA, "icons"))
+    items = common.skriv_inventory()
     antal = {it["id"]: it["qty"] for it in items}
-    skriv_json(gemensamt.PRICES, {"updates": [{"date": idag, "prices": {}, "qty": antal}]})
+    skriv_json(common.PRICES, {"updates": [{"date": idag, "prices": {}, "qty": antal}]})
     oppning = {"date": idag, "month": idag[:7], "items": sum(antal.values()), "kinds": len(antal)}
     if snitt:
         # Uppskattat: samma pris för alla. Exakta priser per sort kan skrivas
@@ -258,7 +258,7 @@ def forsta_gangen(hittat, args):
 
 def main(args):
     sys.stdout.reconfigure(encoding="utf-8")
-    logg = open(os.path.join(HERE, "senaste_synk.txt"), "w", encoding="utf-8")
+    logg = open(os.path.join(HERE, "last_sync.txt"), "w", encoding="utf-8")
     sys.stdout = Dubbel(sys.stdout, logg)
     sys.stderr.reconfigure(encoding="utf-8")
     sys.stderr = Dubbel(sys.stderr, logg)
@@ -272,7 +272,7 @@ def main(args):
         else:
             # Bredvid skriptet, inte i Temp: där går den att granska efteråt.
             # Skrivs över vid nästa körning.
-            mapp = os.path.join(HERE, "senaste_inventering")
+            mapp = os.path.join(HERE, "last_scan")
             shutil.rmtree(mapp, ignore_errors=True)
             os.makedirs(mapp)
             inventera(mapp)
@@ -319,12 +319,12 @@ def main(args):
     idag = datetime.date.today().isoformat()
     skriv_json(DECO, {"datum": idag, "foremal": [{"namn": n, "antal": a, "kategori": k, "id": i}
                                                  for i, (n, k, a) in hittat.items()]})
-    import ikoner
-    ikoner.main(os.path.join(SIDA, "icons"))
-    items = gemensamt.skriv_inventory()
+    import icons
+    icons.main(os.path.join(SIDA, "icons"))
+    items = common.skriv_inventory()
 
     # Aktivitetsloggen: en rad per ändring, med senast kända pris.
-    data = json.load(open(gemensamt.PRICES, encoding="utf-8"))
+    data = json.load(open(common.PRICES, encoding="utf-8"))
     senaste = {}
     for u in data["updates"]:
         senaste.update(u["prices"])
@@ -341,10 +341,10 @@ def main(args):
             if forslag:
                 svar = input("Did you sell %s? The shop sold it for %s each. Enter = yes, another price, n = no: "
                              % (namn, format(forslag, ",").replace(",", " ")))
-                pris = forslag if not svar.strip() else None if svar.strip().lower() == "n" else gemensamt.tolka(svar)
+                pris = forslag if not svar.strip() else None if svar.strip().lower() == "n" else common.tolka(svar)
             else:
                 svar = input("Did you sell %s? Price each (e.g. 20k), Enter = no: " % namn)
-                pris = gemensamt.tolka(svar) if svar.strip() else None
+                pris = common.tolka(svar) if svar.strip() else None
             if pris:
                 rad["sold_price"] = pris
             else:
@@ -358,7 +358,7 @@ def main(args):
         # Enter, och raden är neutral.
         if d > 0 and "--ja" not in args:
             svar = input("Did you buy %s for mesos? Price each, Enter = no: " % namn)
-            pris = gemensamt.tolka(svar) if svar.strip() else None
+            pris = common.tolka(svar) if svar.strip() else None
             if pris:
                 rad["buy_price"] = pris
         logg["events"].append(rad)
@@ -374,7 +374,7 @@ def main(args):
         forra_pris = data["updates"][-1]["prices"] if data["updates"] else {}
         data["updates"].append({"date": idag, "prices": {i: p for i, p in forra_pris.items() if i in antal},
                                 "qty": antal, "inventory": True})
-    skriv_json(gemensamt.PRICES, data)
+    skriv_json(common.PRICES, data)
 
     d = datetime.date.today()
     kort = ", ".join("%+d %s" % (dd, n) for _, n, dd in andringar[:4]) + (" …" if len(andringar) > 4 else "")
