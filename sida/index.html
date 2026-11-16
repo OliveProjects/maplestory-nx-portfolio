@@ -57,7 +57,7 @@
     <h1>{{SAJTNAMN}}</h1>
     <p class="sub">The cosmetics in my MapleStory Classic inventory, valued in mesos like a portfolio. <span id="updated"></span></p>
 
-    <p class="total"><span id="total">–</span> <span class="sub">mesos</span></p>
+    <p class="total"><span id="total">–</span> <span class="sub" id="unit">mesos</span></p>
     <ul class="facts" id="facts"></ul>
 
     <h2>Value over time</h2>
@@ -146,6 +146,7 @@ async function load() {
         // Before the first prices: the hourly job fetches each item's history,
         // five an hour, and builds the prices when all are fetched.
         document.getElementById('total').textContent = 'Waiting for prices';
+        document.getElementById('unit').hidden = true;
         document.getElementById('updated').textContent = `The first prices come after about ${Math.ceil(rows.length / 5)} hours.`;
     }
     const when = live && live.updated ? live.updated * 1000 : null;
