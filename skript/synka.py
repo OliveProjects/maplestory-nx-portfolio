@@ -334,8 +334,8 @@ def main(args):
         rad = {"date": idag, "id": iid, "name": namn, "delta": d, "price": senaste.get(iid)}
         # Sålt? Sidan visar då SOLD och "sold for …" i stället för REMOVED och
         # dagens marknadspris. Har marknaden sett det säljas i en butik
-        # föreslås det priset (Enter tar det, n = inte sålt). Bortgivet
-        # ("given": true) skrivs in i activity.json för hand.
+        # föreslås det priset (Enter tar det, n = inte sålt). Inte sålt:
+        # bortgivet ("given": true) eller använt ("used": true), båda uttag.
         if d < 0 and "--ja" not in args:
             forslag = salt.get(TILL_MARKNAD.get(iid, iid))
             if forslag:
@@ -347,6 +347,12 @@ def main(args):
                 pris = gemensamt.tolka(svar) if svar.strip() else None
             if pris:
                 rad["sold_price"] = pris
+            else:
+                svar = input("  Did you give %s away (g) or use it (u)? Enter = neither: " % namn).strip().lower()
+                if svar in ("g", "given", "gave"):
+                    rad["given"] = True
+                elif svar in ("u", "used", "use"):
+                    rad["used"] = True
         # Köpt för meso? Då räknas det in i snittkostnaden och skillnaden mot
         # marknadspriset som handel i månadsrutnätet. Köpt för NX eller fått:
         # Enter, och raden är neutral.
