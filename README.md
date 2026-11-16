@@ -73,7 +73,7 @@ What you own the first time becomes your starting holdings. The script asks what
 
 **From the screen** (3840×2160 only):
 1. Open **Item Inventory** in the game and select the **Deco** tab.
-2. Double-click `Synka.bat`.
+2. Double-click `Synka.bat` and pick **1**.
 3. Accept the UAC prompt (the game only takes mouse input from a program running as administrator), click in the game within a minute, and don't touch the mouse until it says you can let go.
 
 The script finds the inventory wherever it sits in the window and scrolls through the tab. It then recognises every item from the game's own icons, shows what changed, and asks before it publishes. In another resolution it stops at once instead of clicking in the wrong place.
@@ -84,7 +84,7 @@ The script finds the inventory wherever it sits in the window and scrolls throug
    2 Angel Wand
    1 1112100
    ```
-2. Double-click `Synka lista.bat`.
+2. Double-click `Synka.bat` and pick **2** (or double-click `Synka lista.bat`).
 
 If several items share a name, for example Cat Hat or White Label Ring, the script shows their ids and saves their icons in the `kandidater` folder. Write the id on the line instead of the name.
 
@@ -101,11 +101,22 @@ You can start a run by hand under Actions → Prices → Run workflow.
 
 ## Day to day
 
-Buy or sell in the game, then run `Synka.bat` (or `Synka lista.bat` after updating your list). The sync shows what changed and asks:
-- **sold:** what you got for it. If the market saw your shop sell the item, that price is suggested.
-- **bought:** what you paid. Press Enter if you bought it for NX or got it.
+Double-click `Synka.bat`. It asks what you want to do:
 
-If you gave something away, write `"given": true` on its line in `data/activity.json` in your site repo.
+```
+What do you want to do?
+  1  Scan the Deco tab in the game
+  2  Sync from your list (mina_foremal.txt)
+  3  Set the mesos : NX rate
+  4  Update your site to this version
+  q  Quit
+```
+
+- **1 or 2** after you bought, sold, gave away or used something. The sync shows what changed and asks:
+  - **gone:** did you sell it, and for what? If the market saw your shop sell it, that price is suggested. If not: did you give it away (g) or use it (u)? Both count as taking it out, neither gain nor loss.
+  - **new:** what you paid. Press Enter if you bought it for NX or got it.
+- **3** when the game's rate moves: how many mesos 1k NX costs, and what 1k NX costs in dollars from Nexon. The page's NX and $ tiles and the $ chart use it, and every day keeps the rate it had, so the $ line can differ from the mesos line.
+- **4** after you downloaded a newer version of this repo.
 
 ### Exact purchase prices afterwards (optional)
 
@@ -132,7 +143,8 @@ The main scripts:
 | Script | What it does |
 |---|---|
 | `website_creator.py` | creates your site repo, the page, the hourly job and the secret |
-| `synka.py` (`Synka.bat`) | reads the Deco tab, recognises the items, publishes the changes |
+| `meny.py` (`Synka.bat`) | the menu: scan, sync from the list, set the NX rate, update the site |
+| `synka.py` | reads the Deco tab, recognises the items, publishes the changes |
 | `inventera.py` | finds the inventory in the game window and scrolls through it |
 | `gruppera.py`, `bildmatch.py` | group the slots by icon and match them against the game's icons |
 | `ikonbibliotek.py`, `ikoner.py` | read the icons and names from the game's WZ files |

@@ -46,6 +46,16 @@ def fraga(text, standard=""):
     return svar or standard
 
 
+def tolka_belopp(svar):
+    """20000, 20,000, 20k or 1.2m -> a whole number; anything else -> None."""
+    s = svar.strip().lower().replace(",", "").replace(" ", "")
+    faktor = {"k": 1e3, "m": 1e6, "b": 1e9}.get(s[-1:], 1)
+    try:
+        return int(round(float(s.rstrip("kmb")) * faktor))
+    except ValueError:
+        return None
+
+
 def kontrollera_gh():
     if not shutil.which("gh"):
         sys.exit("The GitHub CLI (gh) is missing. Install it from https://cli.github.com and run: gh auth login")
@@ -135,6 +145,8 @@ def skapa():
         sys.exit("No key given. Get one at https://maplestory.market and run again.")
     ref = fraga("Your key's link code (ref) from the Account page")
     tidszon = fraga("Your time zone (where the day ends)", "Europe/Stockholm")
+    # The NX rate for the page's NX and $ tiles; change it later with Synka.bat → 3.
+    kurs = tolka_belopp(fraga("How many mesos does 1k NX cost in the game now?", "20k")) or 20000
     wz = fraga("The game's Data folder", STANDARD_WZ)
     mapp = fraga("Where to put the site's repo on this computer",
                  os.path.abspath(os.path.join(HERE, "..", "..", repo)))
@@ -152,6 +164,12 @@ def skapa():
         json.dump(inst, fh, ensure_ascii=False, indent=1)
     with open(os.path.join(HERE, "nyckel.txt"), "w", encoding="utf-8") as fh:
         fh.write(nyckel)
+
+    data_mapp = os.path.join(mapp, "maplestory", "data")
+    os.makedirs(data_mapp, exist_ok=True)
+    with open(os.path.join(data_mapp, "nx_rates.json"), "w", encoding="utf-8", newline="\n") as fh:
+        json.dump({"usd_per_1k_nx": 1, "rates": [{"from": __import__("datetime").date.today().isoformat(),
+                                                  "mesos_per_1k_nx": kurs}]}, fh, indent=1)
 
     print("Adding the page, the scripts and the hourly job ...")
     lagg_filer(mapp, inst)
