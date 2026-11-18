@@ -78,6 +78,13 @@ What you own the first time becomes your starting holdings. The script asks what
 
 The script finds the inventory wherever it sits in the window and scrolls through the tab. It then recognises every item from the game's own icons, shows what changed, and asks before it publishes. In another resolution it stops at once instead of clicking in the wrong place.
 
+**From your own screenshots** (the script never touches the game, no admin rights):
+1. In the game, open **Item Inventory** on the **Deco** tab and press **Print Screen**.
+2. Scroll down yourself and press Print Screen again, so that each screenshot shows at least one row from another one. Go on to the bottom of the tab.
+3. Double-click `Sync.bat` and pick **2**. The first time it asks where the game saves its screenshots (the folder with `Maple_YYMMDD_HHMMSS.jpg`; it suggests the game's usual folder) and remembers it.
+
+The script reads the day's screenshots in that folder, skips the ones of other tabs, finds the inventory in each (any 16:9 resolution), and fits them together by their rows, so a row in several screenshots counts once. Where a row is in several screenshots, each pixel is the median of them, so a tooltip in one screenshot goes away; the game's mouse pointer is found and left out too. Tested 2026-11-18 on 17 screenshots in two rounds, scrolled back and forth: 112 items in 47 kinds, the same as the scan.
+
 **From a list** (always works):
 1. Write your inventory in `my_items.txt`, one line per kind with the count and the name as the game writes it:
    ```
@@ -105,19 +112,21 @@ Double-click `Sync.bat`. It asks what you want to do:
 
 ```
 What do you want to do?
-  1  Scan the Deco tab in the game
-  2  Sync from your list (my_items.txt)
-  3  Set the mesos : NX rate
-  4  Update your site to this version
+  1  Scan the Deco tab in the game (the script scrolls for you)
+  2  Read your own screenshots of the Deco tab (the script never touches the game)
+  3  Sync from your list (my_items.txt)
+  4  Set the mesos : NX rate
+  5  Update your site to this version
+  6  Enter prices yourself (paste a price list)
   q  Quit
 ```
 
-- **1 or 2** after you bought, sold, gave away or used something. The sync shows what changed and asks:
+- **1, 2 or 3** after you bought, sold, gave away or used something. The sync shows what changed and asks:
   - **gone:** did you sell it, and for what? If the market saw your shop sell it, that price is suggested. If not: did you give it away (g) or use it (u)? Both count as taking it out, neither gain nor loss.
   - **new:** what you paid. Press Enter if you bought it for NX or got it.
-- **3** when the game's rate moves: how many mesos 1k NX costs, and what 1k NX costs in dollars from Nexon. The page's NX and $ tiles and the $ chart use it, and every day keeps the rate it had, so the $ line can differ from the mesos line.
-- **4** after you downloaded a newer version of this repo.
-- **5** to enter today's prices yourself: paste a price list and end with a line saying `END`. The layout does not matter much: every line that is one of your items is a starting point, and its price is the first mesos amount after it (`950K`, `1.1M`, `8,999`); percentages, NX prices, sales counts and lines like "Cash Shop" are skipped, and the search stops at the next item name or "No sales". A name and a price on one line work too (`Angel Halo 950k`). The script lists what got a price and the total, and publishes only if you say yes. If the hourly maplestory.market job runs, it replaces these prices within the hour, so this is for when you have no key or the market has no data.
+- **4** when the game's rate moves: how many mesos 1k NX costs, and what 1k NX costs in dollars from Nexon. The page's NX and $ tiles and the $ chart use it, and every day keeps the rate it had, so the $ line can differ from the mesos line.
+- **5** after you downloaded a newer version of this repo.
+- **6** to enter today's prices yourself: paste a price list and end with a line saying `END`. The layout does not matter much: every line that is one of your items is a starting point, and its price is the first mesos amount after it (`950K`, `1.1M`, `8,999`); percentages, NX prices, sales counts and lines like "Cash Shop" are skipped, and the search stops at the next item name or "No sales". A name and a price on one line work too (`Angel Halo 950k`). The script lists what got a price and the total, and publishes only if you say yes. If the hourly maplestory.market job runs, it replaces these prices within the hour, so this is for when you have no key or the market has no data.
 
 ### Exact purchase prices afterwards (optional)
 
@@ -144,7 +153,8 @@ The main scripts:
 | Script | What it does |
 |---|---|
 | `website_creator.py` | creates your site repo, the page, the hourly job and the secret |
-| `menu.py` (`Sync.bat`) | the menu: scan, sync from the list, set the NX rate, update the site |
+| `menu.py` (`Sync.bat`) | the menu: scan, screenshots, list, NX rate, update, prices by hand |
+| `from_screenshots.py` | reads the Deco tab from your own screenshots (menu option 2) |
 | `sync.py` | reads the Deco tab, recognises the items, publishes the changes |
 | `scan_inventory.py` | finds the inventory in the game window and scrolls through it |
 | `group_slots.py`, `icon_match.py` | group the slots by icon and match them against the game's icons |

@@ -1,10 +1,11 @@
 """What Sync.bat shows: a menu of what you can do.
 
-  1  Scan the Deco tab in the game        (sync.py)
-  2  Sync from your list                  (sync.py --lista my_items.txt)
-  3  Set the mesos : NX rate              (data/nx_rates.json on your site)
-  4  Update your site to this version     (website_creator.py --update)
-  5  Enter prices yourself                (paste a price list; today's prices)
+  1  Scan the Deco tab in the game        (sync.py; the script scrolls)
+  2  Read your own screenshots            (sync.py --skarmbilder; never touches the game)
+  3  Sync from your list                  (sync.py --lista my_items.txt)
+  4  Set the mesos : NX rate              (data/nx_rates.json on your site)
+  5  Update your site to this version     (website_creator.py --update)
+  6  Enter prices yourself                (paste a price list; today's prices)
 
 The rate is how many mesos 1k NX costs in the game right now, plus what
 1k NX costs in dollars from Nexon. The page's NX and $ tiles and the $
@@ -211,6 +212,38 @@ def ange_priser():
     print("  Published: %d prices entered by hand, today's value of those %s mesos." % (len(traff), format(varde, ",")))
 
 
+STANDARD_SKARMBILDER = r"C:\Nexon\Library\maplestorycw\appdata"
+
+
+def skarmbildsmapp():
+    """The folder the game saves its screenshots in, from settings.json; asked
+    for (and saved) the first time, since it differs between computers."""
+    fil = os.path.join(HERE, "settings.json")
+    inst = json.load(open(fil, encoding="utf-8"))
+    mapp = inst.get("screenshot_folder")
+    print("""
+  Take the screenshots in the game first: open Item Inventory on the Deco tab,
+  press Print Screen, scroll down yourself, press Print Screen again, and so on
+  to the bottom. Each screenshot should show at least one row from another one.
+  Today's screenshots in the folder are read; screenshots of other tabs are skipped.""")
+    if mapp and os.path.isdir(mapp):
+        svar = input("  Screenshot folder: %s  (Enter = use it, or type another): " % mapp).strip().strip('"')
+    else:
+        forslag = STANDARD_SKARMBILDER if os.path.isdir(STANDARD_SKARMBILDER) else ""
+        svar = input("  Where does the game save its screenshots? (the folder with Maple_….jpg)%s: "
+                     % (" [%s]" % forslag if forslag else "")).strip().strip('"') or forslag
+    ny = svar or mapp
+    if not ny or not os.path.isdir(ny):
+        print("  That folder does not exist: %r" % ny)
+        return None
+    if ny != mapp:
+        inst["screenshot_folder"] = ny
+        with open(fil, "w", encoding="utf-8", newline="\n") as fh:
+            json.dump(inst, fh, ensure_ascii=False, indent=1)
+        print("  Saved; next time it uses this folder.")
+    return ny
+
+
 def main():
     sys.stdout.reconfigure(encoding="utf-8")
     if not os.path.exists(os.path.join(HERE, "settings.json")):
@@ -219,28 +252,33 @@ def main():
     while True:
         print("""
 What do you want to do?
-  1  Scan the Deco tab in the game
-  2  Sync from your list (my_items.txt)
-  3  Set the mesos : NX rate
-  4  Update your site to this version
-  5  Enter prices yourself (paste a price list)
+  1  Scan the Deco tab in the game (the script scrolls for you)
+  2  Read your own screenshots of the Deco tab (the script never touches the game)
+  3  Sync from your list (my_items.txt)
+  4  Set the mesos : NX rate
+  5  Update your site to this version
+  6  Enter prices yourself (paste a price list)
   q  Quit""")
         val = input("> ").strip().lower()
         if val == "1":
             print("\n  Open Item Inventory in the game and select the Deco tab first.")
             subprocess.run([sys.executable, os.path.join(HERE, "sync.py")])
         elif val == "2":
-            subprocess.run([sys.executable, os.path.join(HERE, "sync.py"), "--lista", os.path.join(HERE, "my_items.txt")])
+            mapp = skarmbildsmapp()
+            if mapp:
+                subprocess.run([sys.executable, os.path.join(HERE, "sync.py"), "--skarmbilder", mapp])
         elif val == "3":
-            satt_kurs()
+            subprocess.run([sys.executable, os.path.join(HERE, "sync.py"), "--lista", os.path.join(HERE, "my_items.txt")])
         elif val == "4":
-            subprocess.run([sys.executable, os.path.join(HERE, "website_creator.py"), "--update"])
+            satt_kurs()
         elif val == "5":
+            subprocess.run([sys.executable, os.path.join(HERE, "website_creator.py"), "--update"])
+        elif val == "6":
             ange_priser()
         elif val in ("q", "quit", ""):
             return
         else:
-            print("  Pick 1, 2, 3, 4, 5 or q.")
+            print("  Pick 1 to 6, or q.")
 
 
 if __name__ == "__main__":

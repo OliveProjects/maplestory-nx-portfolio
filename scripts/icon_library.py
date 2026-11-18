@@ -85,9 +85,16 @@ def main():
             if info.get("cash") != 1:
                 continue
             iid = str(int(e.name[:-4]))
+            # The icon is fetched through the info/iconRaw node's link. It
+            # usually points to the item's own file in _Canvas, but colour
+            # variants share another item's icon (Black Dress Shoes 1077000 ->
+            # 01072999.img). With only the item's own path they were missing:
+            # 2,532 icons instead of 2,750, and Black Dress Shoes was read as
+            # Brown Dress Shoes (found 2026-11-18).
             try:
-                im = bild(nod("Character/%s/_Canvas/%s" % (kat, e.name), "info", "iconRaw"))
-            except KeyError:
+                im = bild(info["iconRaw"]) if isinstance(info.get("iconRaw"), dict) \
+                    else bild(nod("Character/%s/_Canvas/%s" % (kat, e.name), "info", "iconRaw"))
+            except (KeyError, ValueError):
                 continue
             if im is None or im.width > RUTA or im.height > RUTA:
                 continue

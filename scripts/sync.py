@@ -3,6 +3,9 @@
   python sync.py                   inventera, visa skillnaden, fråga, publicera
   python sync.py --ja              publicera utan att fråga
   python sync.py --fran <mapp>     använd en befintlig inventering (vy_*.png)
+  python sync.py --skarmbilder <mapp>
+                                   dagens skärmbilder av Deco-fliken som du tog
+                                   själv (from_screenshots.py); rör inte spelet
   python sync.py --lista <fil>     inventariet ur en textfil i stället för
                                     skärmen (vilken upplösning som helst)
 
@@ -116,10 +119,22 @@ def kanna_igen(mapp):
     pagar("Grouping the slots by icon ...")
     fonster = {(g, c): f for g, c, f in rutor(mapp)}
     hittat, osakra = {}, []
+    forra = {f["id"] for f in json.load(open(DECO, encoding="utf-8"))["foremal"]} if os.path.exists(DECO) else set()
     alla = list(grupper(mapp))
     for nr, grp in enumerate(alla, 1):
         pagar("Recognising kind %d of %d ..." % (nr, len(alla)))
         i, fel, kvot = kanna_igen_grupp(bib, [fonster[rc] for rc in grp["rutor"]])
+        # Samma ikon på flera föremål (White och Blue Label Ring): det som
+        # redan fanns i inventariet, annars går det inte att avgöra på bild.
+        tvillingar = bib.tvillingar[i]
+        if len(tvillingar) > 1:
+            kanda = [t for t in tvillingar if str(bib.ids[t]) in forra]
+            if len(kanda) != 1:
+                osakra.append("%d from row %d: same icon as %s; write it in my_items.txt with the id"
+                              % (len(grp["rutor"]), grp["rutor"][0][0],
+                                 ", ".join("%s (%s)" % (bib.namn[t], bib.ids[t]) for t in tvillingar)))
+                continue
+            i = kanda[0]
         iid, namn, kat = str(bib.ids[i]), str(bib.namn[i]), str(bib.kats[i])
         if kvot < SAKER_KVOT:
             osakra.append("%d from row %d: probably %s (%s), ratio %.2f"
@@ -269,6 +284,14 @@ def main(args):
     else:
         if "--fran" in args:
             mapp = args[args.index("--fran") + 1]
+        elif "--skarmbilder" in args:
+            # Dagens skärmbilder som spelaren tog själv (from_screenshots.py):
+            # skriptet rör aldrig spelet.
+            steg(1, "Reading your screenshots")
+            mapp = os.path.join(HERE, "last_scan")
+            shutil.rmtree(mapp, ignore_errors=True)
+            import from_screenshots
+            from_screenshots.main(args[args.index("--skarmbilder") + 1], mapp)
         else:
             # Bredvid skriptet, inte i Temp: där går den att granska efteråt.
             # Skrivs över vid nästa körning.

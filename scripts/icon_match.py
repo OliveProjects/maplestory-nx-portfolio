@@ -30,6 +30,15 @@ class Bibliotek:
     def __init__(self, fil=os.path.join(HERE, "icon_library.npz")):
         d = np.load(fil)
         self.ids, self.kats, self.namn = d["ids"], d["kats"], d["namn"]
+        # Föremål med pixelidentisk ikon (White och Blue Label Ring, 44
+        # grupper 2026-11-02) går inte att skilja på bild. Bara gruppens
+        # första jämförs; tvillingar[i] är hela gruppen, och den som anropar
+        # väljer bland dem.
+        forst, self.tvillingar, self.representant = {}, {}, []
+        for i, (b, s) in enumerate(zip(d["bilder"], d["storlek"])):
+            r = forst.setdefault(b.tobytes() + s.tobytes(), i)
+            self.tvillingar.setdefault(r, []).append(i)
+            self.representant.append(r)
         self.mallar = []
         for b, (w, h) in zip(d["bilder"], d["storlek"]):
             # Klienten skalar upp ikonerna med utjämning, så konturerna i
@@ -54,7 +63,7 @@ class Bibliotek:
         jämförs. Pixlar som mallen inte förklarar räknas då också."""
         f = fonster.astype(np.float32)
         steg1 = []
-        for i in (kandidater if kandidater is not None else range(len(self.mallar))):
+        for i in (kandidater if kandidater is not None else self.tvillingar):
             rgb, mask = self.mallar[i]
             if rgb.shape[0] > f.shape[0] or rgb.shape[1] > f.shape[1]:
                 continue
@@ -69,7 +78,14 @@ class Bibliotek:
         # Cash-brickan (röd-orange "C" nere till höger) är densamma i varje
         # ruta och säger inget om föremålet; dess pixlar räknas inte.
         bricka = (bit[..., 0] > 170) & (bit[..., 1] < 110) & (bit[..., 2] < 90)
-        vikt = (~bricka).astype(np.float32)
+        # Spelets orangegula ram runt den senast klickade rutan ligger i
+        # rutans kant och räknas inte heller; bara där, så att gula föremål
+        # inte tappar pixlar. Med ramen blev Brown Dress Shoes osäker
+        # (kvot 1,02 mot Kerning Engineering School Shoes, 2026-11-02).
+        yy, xx = np.mgrid[y0:y1, x0:x1]
+        kant = np.maximum(abs(yy - h / 2), abs(xx - w / 2)) >= 13
+        ram = kant & (bit[..., 0] > 200) & (bit[..., 1] > 140) & (bit[..., 1] < 225) & (bit[..., 2] < 125)
+        vikt = (~(bricka | ram)).astype(np.float32)
         ut = []
         for _, i, (lx, ly) in steg1[:topp]:
             rgb, mask = self.mallar[i]
@@ -102,10 +118,20 @@ def kanna_igen_grupp(bib, fonsterlista, topp=30):
 
 
 def fonster(vy_rgb, r, c):
-    """Fönstret runt rutan (r, c) i en vy, nedskalat till spelets upplösning."""
+    """Fönstret runt rutan (r, c) i en vy, nedskalat till spelets upplösning.
+
+    Vid vyns kant fylls fönstret ut med rutans grå i stället för att kapas,
+    så att rutan alltid ligger i mitten. Kapat hamnade rutorna i vyns översta
+    rad snett, och steg två i kanna_igen jämför fönstrets mitt: 2026-11-02
+    blev Yellow Spatula (rad 18, överst i vy_18) Yellow Cowboy Hat."""
     cx, cy = 52 + DX * c, 44 + DY * r
     h, w = vy_rgb.shape[:2]
     bit = vy_rgb[max(0, cy - FONSTER):min(h, cy + FONSTER), max(0, cx - FONSTER):min(w, cx + FONSTER)]
+    upp, vanster = max(0, FONSTER - cy), max(0, FONSTER - cx)
+    ned, hoger = max(0, cy + FONSTER - h), max(0, cx + FONSTER - w)
+    if upp or vanster or ned or hoger:
+        bit = cv2.copyMakeBorder(np.ascontiguousarray(bit), upp, ned, vanster, hoger,
+                                 cv2.BORDER_CONSTANT, value=SLOT_RGB.tolist())
     return cv2.resize(bit, None, fx=1 / SKALA, fy=1 / SKALA, interpolation=cv2.INTER_AREA)
 
 
