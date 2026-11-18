@@ -1,96 +1,91 @@
-"""Hämtar ikonen för varje föremål i deco.json ur klientens WZ-filer.
+"""Fetches the icon of every item in deco.json from the client's WZ files.
 
-  python icons.py            (ikonerna hamnar i sidans icons/)
-  python icons.py <utmapp>
+  python icons.py              (the icons go to the page's icons/)
+  python icons.py <out folder>
 
-Namnet slås upp i String/Eqp.img (under ClassicWorld), ikonen ligger i
-Character/<kategori>/_Canvas/_Canvas_000.wz som <id>.img/info/iconRaw.
-Sparar <utmapp>/<id>.png och skriver id och kategori tillbaka i deco.json.
-Har ett namn flera id väljs det som deco.json redan anger (fältet "id");
-saknas det sparas alla kandidater och skriptet säger till.
+The name is looked up in String/Eqp.img (under ClassicWorld); the icon is in
+Character/<category>/_Canvas/_Canvas_000.wz as <id>.img/info/iconRaw.
+Saves <out folder>/<id>.png and writes the id and category back to
+deco.json. If a name has several ids, the one deco.json already gives (the
+"id" field) is chosen; without it every candidate is saved and the script
+says so.
 """
-import json
 import os
 import sys
 
 from PIL import Image
 
-import settings as inst
+import settings as cfg
+from common import read_deco, write_json, DECO
 from wz.img_parser import decode_canvas
 from wz.wz_archive import WzArchive
 
-DATA = inst.WZ_DATA
+DATA = cfg.WZ_DATA
 HERE = os.path.dirname(os.path.abspath(__file__))
-DECO = os.path.join(HERE, "deco.json")
 
 
-def katalog():
-    """({namn: [(kategori, id)]}, {id: (namn, kategori)}) för alla
-    utrustningsföremål i Classic."""
+def catalog():
+    """({name: [(category, id)]}, {id: (name, category)}) for every equipment
+    item in Classic."""
     s = WzArchive(os.path.join(DATA, "String", "String_000.wz"))
     eqp = s.find("Eqp.img").parse()["ClassicWorld"]
-    namn, per_id = {}, {}
-    for kat, poster in eqp.items():
-        for iid, v in poster.items():
+    by_name, by_id = {}, {}
+    for category, entries in eqp.items():
+        for iid, v in entries.items():
             if isinstance(v, dict) and isinstance(v.get("name"), str):
                 iid = str(int(iid))
-                namn.setdefault(v["name"], []).append((kat, iid))
-                per_id[iid] = (v["name"], kat)
-    return namn, per_id
+                by_name.setdefault(v["name"], []).append((category, iid))
+                by_id[iid] = (v["name"], category)
+    return by_name, by_id
 
 
-def namn_till_id():
-    return katalog()[0]
-
-
-def ikon(kat, iid, arkiv={}):
-    """Ikonen ligger i _Canvas under den fil som föremålets info/iconRaw
-    länkar till. Oftast föremålets egen, men färgvarianter delar ikon med en
-    annan (Black Dress Shoes 1077000 -> 01072999.img)."""
-    for namn in (kat + "_000.wz", os.path.join("_Canvas", "_Canvas_000.wz")):
-        if (kat, namn) not in arkiv:
-            arkiv[kat, namn] = WzArchive(os.path.join(DATA, "Character", kat, namn))
-    fil = "%08d.img" % int(iid)
-    post = arkiv[kat, kat + "_000.wz"].find(fil)
-    if post is not None:
-        lank = (post.parse().get("info", {}).get("iconRaw") or {}).get("link", "")
-        if lank.startswith("Character/%s/_Canvas/" % kat) and ".img/" in lank:
-            fil = lank.split("/")[3]
-    post = arkiv[kat, os.path.join("_Canvas", "_Canvas_000.wz")].find(fil)
-    if post is None:
+def icon(category, iid, archives={}):
+    """The icon lies in _Canvas under the file the item's info/iconRaw links
+    to. Usually the item's own, but colour variants share another item's
+    icon (Black Dress Shoes 1077000 -> 01072999.img)."""
+    for name in (category + "_000.wz", os.path.join("_Canvas", "_Canvas_000.wz")):
+        if (category, name) not in archives:
+            archives[category, name] = WzArchive(os.path.join(DATA, "Character", category, name))
+    path = "%08d.img" % int(iid)
+    entry = archives[category, category + "_000.wz"].find(path)
+    if entry is not None:
+        link = (entry.parse().get("info", {}).get("iconRaw") or {}).get("link", "")
+        if link.startswith("Character/%s/_Canvas/" % category) and ".img/" in link:
+            path = link.split("/")[3]
+    entry = archives[category, os.path.join("_Canvas", "_Canvas_000.wz")].find(path)
+    if entry is None:
         return None
-    info = post.parse().get("info", {})
+    info = entry.parse().get("info", {})
     rgba = decode_canvas(info.get("iconRaw") or info.get("icon"))
     return None if rgba is None else Image.fromarray(rgba, "RGBA")
 
 
-def main(ut):
-    # Inifrån sync.py är stdout loggskrivaren (Dubbel), som redan är UTF-8.
+def main(out):
+    # Run from sync.py, stdout is the log writer (Tee), already UTF-8.
     if hasattr(sys.stdout, "reconfigure"):
         sys.stdout.reconfigure(encoding="utf-8")
-    os.makedirs(ut, exist_ok=True)
-    deco = json.load(open(DECO, encoding="utf-8"))
-    karta = namn_till_id()
-    for f in deco["foremal"]:
-        kandidater = karta.get(f["namn"], [])
+    os.makedirs(out, exist_ok=True)
+    deco = read_deco()
+    by_name = catalog()[0]
+    for f in deco["items"]:
+        candidates = by_name.get(f["name"], [])
         if f.get("id"):
-            kandidater = [k for k in kandidater if k[1] == f["id"]]
-        if not kandidater:
-            print("SAKNAS:", f["namn"])
+            candidates = [k for k in candidates if k[1] == f["id"]]
+        if not candidates:
+            print("MISSING:", f["name"])
             continue
-        for kat, iid in kandidater:
-            bild = ikon(kat, iid)
-            if bild is None:
-                print("ingen ikon:", f["namn"], kat, iid)
+        for category, iid in candidates:
+            img = icon(category, iid)
+            if img is None:
+                print("no icon:", f["name"], category, iid)
                 continue
-            bild.save(os.path.join(ut, "%s.png" % iid))
-        if len(kandidater) == 1:
-            f["kategori"], f["id"] = kandidater[0]
+            img.save(os.path.join(out, "%s.png" % iid))
+        if len(candidates) == 1:
+            f["category"], f["id"] = candidates[0]
         else:
-            print("FLERA:", f["namn"], kandidater)
-    with open(DECO, "w", encoding="utf-8") as fh:
-        json.dump(deco, fh, ensure_ascii=False, indent=1)
+            print("SEVERAL:", f["name"], candidates)
+    write_json(DECO, deco)
 
 
 if __name__ == "__main__":
-    main(sys.argv[1] if len(sys.argv) > 1 else os.path.join(inst.sida(), "icons"))
+    main(sys.argv[1] if len(sys.argv) > 1 else os.path.join(cfg.page_dir(), "icons"))

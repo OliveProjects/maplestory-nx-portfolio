@@ -1,16 +1,16 @@
-# Hemligt eller API-data: får aldrig i ett publikt repo (API-villkoren).
+# Secret or API data: must never go in a public repo (the API terms).
 api_key.txt
 history/
 owners/
 daily/
 hours.json
-# Byggs eller skrivs om vid varje körning.
+# Built or written again on every run.
 icon_library.npz
 last_scan/
 last_sync.txt
 inter.ttf
 __pycache__/
-# Dina egna inställningar och ditt inventarie (website_creator.py skriver dem).
+# Your own settings and inventory (website_creator.py writes them).
 settings.json
 deco.json
 candidates/

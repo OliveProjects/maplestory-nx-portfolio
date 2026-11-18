@@ -11,8 +11,6 @@ The page shows:
 - an activity log of what you bought and sold, and what your shops have sold
 - a share image with the value and the week's chart, shown when the link is posted in for example Discord
 
-Code comments are in Swedish; everything the scripts print is in English.
-
 ## How it fits together
 
 ```
@@ -91,7 +89,7 @@ The script reads the day's screenshots in that folder, skips the ones of other t
    2 Angel Wand
    1 1112100
    ```
-2. Double-click `Sync.bat` and pick **2** (or double-click `Sync list.bat`).
+2. Double-click `Sync.bat` and pick **3** (or double-click `Sync list.bat`).
 
 If several items share a name, for example Cat Hat or White Label Ring, the script shows their ids and saves their icons in the `candidates` folder. Write the id on the line instead of the name.
 
@@ -167,10 +165,10 @@ The main scripts:
 
 ## If something goes wrong
 
-- **"the game's client area is … but the grid is measured in 3840x2160":** use the list (`Sync list.bat`), or re-measure the sizes at the top of `scan_inventory.py`, `tab_template.png` and `SKALA` in `icon_match.py`.
-- **"Could not be recognised with certainty":** nothing was published. Use the list, or run again with the inventory fully visible.
+- **"the game's client area is … but the grid is measured in 3840x2160":** use your own screenshots or the list (`Sync.bat`, options 2 and 3), or re-measure the sizes at the top of `scan_inventory.py`, `tab_template.png` and `SCALE` in `icon_match.py`.
+- **"Could not be recognised with certainty":** nothing was published. Use the list, or run again with the inventory fully visible. The scan's views are kept in `last_scan/` (`view_00.png`, `view_06.png` …) so you can look at them.
 - **"the game is no longer in front, stopping":** another window came on top. Keep the game in front and don't touch the mouse.
 - **The page has no prices after a day:** open the Actions tab. "The secret MAPLESTORY_MARKET_KEY is missing" means the key was not stored: add it under Settings → Secrets and variables → Actions. A red run shows its error there.
 - **429 from the API:** the hour's calls are used up. The job tries again next hour.
-- **An item has another id on the market than in the game:** add it to `TILL_MARKNAD` in `fetch_history.py` and to `MARKET_ID` in the page. White Label Ring is already there.
+- **An item has another id on the market than in the game:** add it to `TO_MARKET` in `fetch_history.py` and to `MARKET_ID` in the page. White Label Ring is already there.
 - **Never fetch from other price sites automatically** without reading their terms.

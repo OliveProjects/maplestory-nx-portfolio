@@ -1,5 +1,5 @@
-# Datorn med spelet (Windows): allt nedan.
-# Servern: bara Pillow (för delningsbilden); resten är standardbiblioteket.
+# The computer with the game (Windows): everything below.
+# A server: only Pillow (for the share image); the rest is the standard library.
 Pillow>=10.1
 numpy
 opencv-python

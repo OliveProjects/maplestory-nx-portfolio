@@ -19,6 +19,7 @@ What it does:
 You need: a GitHub account, the GitHub CLI (https://cli.github.com, then
 `gh auth login` once), git, and your own API key from maplestory.market.
 """
+import datetime
 import getpass
 import json
 import os
@@ -27,163 +28,184 @@ import subprocess
 import sys
 
 HERE = os.path.dirname(os.path.abspath(__file__))
-INSTALLNINGAR = os.path.join(HERE, "settings.json")
-SERVERSKRIPT = ["settings.py", "fetch_history.py", "market_prices.py", "share_image.py", "actions_job.py"]
+SETTINGS = os.path.join(HERE, "settings.json")
+SERVER_SCRIPTS = ["settings.py", "fetch_history.py", "market_prices.py", "share_image.py", "actions_job.py"]
 SERVER_IGNORE = "api_key.txt\nhistory/\nowners/\ndaily/\nhours.json\n__pycache__/\n"
 # The Swedish names the scripts had before 2026-11-16; --update removes them
 # from .portfolio/ so the old copies don't linger next to the new ones.
-GAMLA_SERVERSKRIPT = ["installningar.py", "installningar.json", "hamta_historik.py", "marknadspriser.py",
+OLD_SERVER_SCRIPTS = ["installningar.py", "installningar.json", "hamta_historik.py", "marknadspriser.py",
                       "delning.py", "actions_steg.py"]
-STANDARD_WZ = r"C:\Nexon\Library\maplestorycw\appdata\Data"
+DEFAULT_WZ = r"C:\Nexon\Library\maplestorycw\appdata\Data"
+# English key -> the Swedish key versions before 2026-11-18 wrote.
+OLD_KEYS = {"characters": "karaktarer", "shop_character": "butik", "site_name": "sajtnamn",
+            "site_url": "sajt_url", "time_zone": "tidszon", "site_repo": "webbrepo", "subfolder": "undermapp"}
 
 
-def kor(args, **kw):
+def run(args, **kw):
     return subprocess.run(args, check=True, text=True, **kw)
 
 
-def ut(args):
+def output(args):
     return subprocess.run(args, capture_output=True, text=True).stdout.strip()
 
 
-def fraga(text, standard=""):
-    svar = input("%s%s: " % (text, " [%s]" % standard if standard else "")).strip()
-    return svar or standard
+def ask(text, default=""):
+    answer = input("%s%s: " % (text, " [%s]" % default if default else "")).strip()
+    return answer or default
 
 
-def tolka_belopp(svar):
+def parse_amount(answer):
     """20000, 20,000, 20k or 1.2m -> a whole number; anything else -> None."""
-    s = svar.strip().lower().replace(",", "").replace(" ", "")
-    faktor = {"k": 1e3, "m": 1e6, "b": 1e9}.get(s[-1:], 1)
+    s = answer.strip().lower().replace(",", "").replace(" ", "")
+    factor = {"k": 1e3, "m": 1e6, "b": 1e9}.get(s[-1:], 1)
     try:
-        return int(round(float(s.rstrip("kmb")) * faktor))
+        return int(round(float(s.rstrip("kmb")) * factor))
     except ValueError:
         return None
 
 
-def kontrollera_gh():
+def english_keys(settings):
+    """The settings with English keys; a settings.json from an older version
+    had Swedish ones."""
+    out = dict(settings)
+    for en, sv in OLD_KEYS.items():
+        if sv in out:
+            out.setdefault(en, out[sv])
+            del out[sv]
+    return out
+
+
+def write_settings(path, settings):
+    with open(path, "w", encoding="utf-8", newline="\n") as fh:
+        json.dump(settings, fh, ensure_ascii=False, indent=1)
+
+
+def check_gh():
     if not shutil.which("gh"):
         sys.exit("The GitHub CLI (gh) is missing. Install it from https://cli.github.com and run: gh auth login")
     if not shutil.which("git"):
         sys.exit("git is missing. Install it from https://git-scm.com")
-    login = ut(["gh", "api", "user", "-q", ".login"])
+    login = output(["gh", "api", "user", "-q", ".login"])
     if not login:
         sys.exit("Not logged in to GitHub. Run: gh auth login")
     return login
 
 
-def lagg_filer(repo_mapp, inst):
+def add_files(repo_dir, settings):
     """The page, the server scripts, the workflow and the small files."""
     # The page, filled in from settings.json (make_page.py does the work).
-    kor([sys.executable, os.path.join(HERE, "make_page.py"), "--skriv-over"])
-    portfolio = os.path.join(repo_mapp, ".portfolio")
+    run([sys.executable, os.path.join(HERE, "make_page.py"), "--overwrite"])
+    portfolio = os.path.join(repo_dir, ".portfolio")
     os.makedirs(portfolio, exist_ok=True)
-    for f in SERVERSKRIPT:
+    for f in SERVER_SCRIPTS:
         shutil.copy(os.path.join(HERE, f), os.path.join(portfolio, f))
-    for f in GAMLA_SERVERSKRIPT:
+    for f in OLD_SERVER_SCRIPTS:
         if os.path.exists(os.path.join(portfolio, f)):
             os.remove(os.path.join(portfolio, f))
-    server_inst = dict(inst, webbrepo="..", git_remotes=["origin"])
-    with open(os.path.join(portfolio, "settings.json"), "w", encoding="utf-8", newline="\n") as fh:
-        json.dump(server_inst, fh, ensure_ascii=False, indent=1)
+    write_settings(os.path.join(portfolio, "settings.json"),
+                   dict(settings, site_repo="..", git_remotes=["origin"]))
     with open(os.path.join(portfolio, ".gitignore"), "w", encoding="utf-8", newline="\n") as fh:
         fh.write(SERVER_IGNORE)
-    flode = os.path.join(repo_mapp, ".github", "workflows")
-    os.makedirs(flode, exist_ok=True)
-    shutil.copy(os.path.join(HERE, "workflow_template.yml"), os.path.join(flode, "prices.yml"))
-    rot = os.path.join(repo_mapp, "index.html")
-    if not os.path.exists(rot):
-        with open(rot, "w", encoding="utf-8", newline="\n") as fh:
+    workflows = os.path.join(repo_dir, ".github", "workflows")
+    os.makedirs(workflows, exist_ok=True)
+    shutil.copy(os.path.join(HERE, "workflow_template.yml"), os.path.join(workflows, "prices.yml"))
+    root = os.path.join(repo_dir, "index.html")
+    if not os.path.exists(root):
+        with open(root, "w", encoding="utf-8", newline="\n") as fh:
             fh.write('<!DOCTYPE html><meta charset="utf-8"><meta http-equiv="refresh" content="0; url=%s/">'
-                     '<a href="%s/">MapleStory portfolio</a>\n' % (inst["undermapp"], inst["undermapp"]))
-    open(os.path.join(repo_mapp, ".nojekyll"), "w").close()
-    readme = os.path.join(repo_mapp, "README.md")
+                     '<a href="%s/">MapleStory portfolio</a>\n' % (settings["subfolder"], settings["subfolder"]))
+    open(os.path.join(repo_dir, ".nojekyll"), "w").close()
+    readme = os.path.join(repo_dir, "README.md")
     if not os.path.exists(readme):
         with open(readme, "w", encoding="utf-8", newline="\n") as fh:
             fh.write("# %s\n\nMy MapleStory Classic NX cosmetics, valued in mesos like a portfolio: %s\n\n"
                      "Prices from [maplestory.market](https://maplestory.market/). The page and the hourly price job "
-                     "were set up with website_creator.py.\n" % (inst["sajtnamn"], inst["sajt_url"]))
+                     "were set up with website_creator.py.\n" % (settings["site_name"], settings["site_url"]))
 
 
-def pusha(repo_mapp, meddelande):
-    git = ["git", "-C", repo_mapp]
-    kor(git + ["add", "-A"])
+def push(repo_dir, message):
+    git = ["git", "-C", repo_dir]
+    run(git + ["add", "-A"])
     if subprocess.run(git + ["diff", "--cached", "--quiet"]).returncode == 0:
         print("Nothing new to push.")
         return
-    kor(git + ["-c", "user.name=" + (ut(git + ["config", "user.name"]) or "MapleStory portfolio"),
-               "commit", "-q", "-m", meddelande])
-    kor(git + ["push", "-q", "-u", "origin", "main"])
+    run(git + ["-c", "user.name=" + (output(git + ["config", "user.name"]) or "MapleStory portfolio"),
+               "commit", "-q", "-m", message])
+    run(git + ["push", "-q", "-u", "origin", "main"])
 
 
-def uppdatera():
-    if not os.path.exists(INSTALLNINGAR):
+def update():
+    if not os.path.exists(SETTINGS):
         sys.exit("settings.json is missing: run python website_creator.py first.")
-    inst = json.load(open(INSTALLNINGAR, encoding="utf-8"))
-    mapp = inst["webbrepo"]
-    kor(["git", "-C", mapp, "pull", "-q", "--rebase", "--autostash"])
-    lagg_filer(mapp, inst)
-    pusha(mapp, "Update the page, the scripts and the hourly job")
-    print("Updated: " + inst["sajt_url"])
+    old = json.load(open(SETTINGS, encoding="utf-8"))
+    settings = english_keys(old)
+    if settings != old:
+        write_settings(SETTINGS, settings)
+        print("settings.json now has English keys.")
+    folder = settings["site_repo"]
+    run(["git", "-C", folder, "pull", "-q", "--rebase", "--autostash"])
+    add_files(folder, settings)
+    push(folder, "Update the page, the scripts and the hourly job")
+    print("Updated: " + settings["site_url"])
 
 
-def skapa():
-    login = kontrollera_gh()
+def create():
+    login = check_gh()
     print("Logged in to GitHub as %s.\n" % login)
-    if os.path.exists(INSTALLNINGAR):
+    if os.path.exists(SETTINGS):
         print("settings.json already exists here. To update an existing site, run with --update.")
-        if fraga("Create a new site anyway and overwrite settings.json? (y/N)", "n").lower() not in ("y", "yes"):
+        if ask("Create a new site anyway and overwrite settings.json? (y/N)", "n").lower() not in ("y", "yes"):
             return
 
-    repo = fraga("Name of the new repo", "maplestory-portfolio")
-    if ut(["gh", "repo", "view", "%s/%s" % (login, repo), "--json", "name", "-q", ".name"]):
+    repo = ask("Name of the new repo", "maplestory-portfolio")
+    if output(["gh", "repo", "view", "%s/%s" % (login, repo), "--json", "name", "-q", ".name"]):
         sys.exit("%s/%s already exists. Pick another name, or use --update for a site you already made." % (login, repo))
-    sajtnamn = fraga("Site name (shown at the top of the page)", "%s's MapleStory" % login)
-    karaktarer = [k.strip() for k in fraga("Your characters' names, separated by commas (their shop sales are fetched)").split(",") if k.strip()]
-    butik = fraga("Which character the shop credit links to", karaktarer[0] if karaktarer else "")
+    site_name = ask("Site name (shown at the top of the page)", "%s's MapleStory" % login)
+    characters = [k.strip() for k in ask("Your characters' names, separated by commas (their shop sales are fetched)").split(",") if k.strip()]
+    shop = ask("Which character the shop credit links to", characters[0] if characters else "")
     print("\nYour API key from maplestory.market (Account page). It is stored as an encrypted")
     print("repo secret and in scripts/api_key.txt on this computer, never in the page or in git.")
     print("When you ask for the key, give the page's address below: their daily check reads it.")
-    agare = login.lower()   # GitHub Pages addresses are lower case
-    sajt_url = ("https://%s.github.io/maplestory/" % agare if repo.lower() == "%s.github.io" % agare
-                else "https://%s.github.io/%s/maplestory/" % (agare, repo))
-    print("  The page will be at: " + sajt_url)
-    nyckel = getpass.getpass("API key (hidden while you type): ").strip()
-    if not nyckel:
+    owner = login.lower()   # GitHub Pages addresses are lower case
+    site_url = ("https://%s.github.io/maplestory/" % owner if repo.lower() == "%s.github.io" % owner
+                else "https://%s.github.io/%s/maplestory/" % (owner, repo))
+    print("  The page will be at: " + site_url)
+    key = getpass.getpass("API key (hidden while you type): ").strip()
+    if not key:
         sys.exit("No key given. Get one at https://maplestory.market and run again.")
-    ref = fraga("Your key's link code (ref) from the Account page")
-    tidszon = fraga("Your time zone (where the day ends)", "Europe/Stockholm")
-    # The NX rate for the page's NX and $ tiles; change it later with Sync.bat → 3.
-    kurs = tolka_belopp(fraga("How many mesos does 1k NX cost in the game now?", "20k")) or 20000
-    wz = fraga("The game's Data folder", STANDARD_WZ)
-    mapp = fraga("Where to put the site's repo on this computer",
+    ref = ask("Your key's link code (ref) from the Account page")
+    time_zone = ask("Your time zone (where the day ends)", "Europe/Stockholm")
+    # The NX rate for the page's NX and $ tiles; change it later with Sync.bat → 4.
+    rate = parse_amount(ask("How many mesos does 1k NX cost in the game now?", "20k")) or 20000
+    wz = ask("The game's Data folder", DEFAULT_WZ)
+    folder = ask("Where to put the site's repo on this computer",
                  os.path.abspath(os.path.join(HERE, "..", "..", repo)))
 
     print("\nCreating %s/%s ..." % (login, repo))
-    kor(["gh", "repo", "create", repo, "--public",
+    run(["gh", "repo", "create", repo, "--public",
          "--description", "My MapleStory Classic NX cosmetics, valued in mesos like a portfolio"])
-    kor(["git", "clone", "-q", "https://github.com/%s/%s.git" % (login, repo), mapp])
-    kor(["git", "-C", mapp, "checkout", "-q", "-B", "main"])
+    run(["git", "clone", "-q", "https://github.com/%s/%s.git" % (login, repo), folder])
+    run(["git", "-C", folder, "checkout", "-q", "-B", "main"])
 
-    inst = {"karaktarer": karaktarer, "butik": butik, "ref": ref, "sajtnamn": sajtnamn,
-            "sajt_url": sajt_url, "tidszon": tidszon, "webbrepo": mapp, "undermapp": "maplestory",
-            "git_remotes": ["origin"], "wz_data": wz, "user_agent": sajt_url}
-    with open(INSTALLNINGAR, "w", encoding="utf-8", newline="\n") as fh:
-        json.dump(inst, fh, ensure_ascii=False, indent=1)
+    settings = {"characters": characters, "shop_character": shop, "ref": ref, "site_name": site_name,
+                "site_url": site_url, "time_zone": time_zone, "site_repo": folder, "subfolder": "maplestory",
+                "git_remotes": ["origin"], "wz_data": wz, "user_agent": site_url}
+    write_settings(SETTINGS, settings)
     with open(os.path.join(HERE, "api_key.txt"), "w", encoding="utf-8") as fh:
-        fh.write(nyckel)
+        fh.write(key)
 
-    data_mapp = os.path.join(mapp, "maplestory", "data")
-    os.makedirs(data_mapp, exist_ok=True)
-    with open(os.path.join(data_mapp, "nx_rates.json"), "w", encoding="utf-8", newline="\n") as fh:
-        json.dump({"usd_per_1k_nx": 1, "rates": [{"from": __import__("datetime").date.today().isoformat(),
-                                                  "mesos_per_1k_nx": kurs}]}, fh, indent=1)
+    data_dir = os.path.join(folder, "maplestory", "data")
+    os.makedirs(data_dir, exist_ok=True)
+    with open(os.path.join(data_dir, "nx_rates.json"), "w", encoding="utf-8", newline="\n") as fh:
+        json.dump({"usd_per_1k_nx": 1, "rates": [{"from": datetime.date.today().isoformat(),
+                                                  "mesos_per_1k_nx": rate}]}, fh, indent=1)
 
     print("Adding the page, the scripts and the hourly job ...")
-    lagg_filer(mapp, inst)
-    pusha(mapp, "MapleStory portfolio: page, scripts and the hourly price job")
+    add_files(folder, settings)
+    push(folder, "MapleStory portfolio: page, scripts and the hourly price job")
 
     print("Storing the API key as a repo secret ...")
-    kor(["gh", "secret", "set", "MAPLESTORY_MARKET_KEY", "-R", "%s/%s" % (login, repo)], input=nyckel)
+    run(["gh", "secret", "set", "MAPLESTORY_MARKET_KEY", "-R", "%s/%s" % (login, repo)], input=key)
     print("Turning on GitHub Pages ...")
     pages = subprocess.run(["gh", "api", "-X", "POST", "repos/%s/%s/pages" % (login, repo),
                             "-f", "build_type=legacy", "-f", "source[branch]=main", "-f", "source[path]=/"],
@@ -198,18 +220,18 @@ DONE. Your site: %s
 
 Next:
   1. python icon_library.py      builds the icon library from the game files (once)
-  2. Sync.bat                    the first sync: reads your Deco tab and publishes it
-                                  (or write your items in my_items.txt and run Sync list.bat)
+  2. Sync.bat                    the first sync: pick how to read your Deco tab
+                                  (scan, your own screenshots, or my_items.txt)
   3. Wait. The hourly job fetches each item's price history, five items per
      hour, and builds the first prices when all are fetched. You can follow
      it under the repo's Actions tab.
 After that, run Sync.bat whenever you buy or sell something.
-""" % sajt_url)
+""" % site_url)
 
 
 if __name__ == "__main__":
     sys.stdout.reconfigure(encoding="utf-8")
     if "--update" in sys.argv[1:]:
-        uppdatera()
+        update()
     else:
-        skapa()
+        create()

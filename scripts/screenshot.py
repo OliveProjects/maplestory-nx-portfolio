@@ -1,8 +1,8 @@
-"""Tar en skärmbild av MapleStory-fönstrets klientyta och sparar den som PNG.
+"""Takes a screenshot of the MapleStory window's client area and saves it as PNG.
 
-Användning: python screenshot.py <ut.png>
-Skriver ut om spelet ligger överst; ligger något annat över fönstret blir
-bilden av det, inte av spelet.
+Usage: python screenshot.py <out.png>
+Prints whether the game is in front; if something else lies over the
+window, the picture is of that, not of the game.
 """
 import ctypes
 import ctypes.wintypes as wt
@@ -14,10 +14,9 @@ u = ctypes.windll.user32
 ctypes.windll.shcore.SetProcessDpiAwareness(2)
 
 
-def hitta_fonster():
-    psapi = ctypes.windll.psapi
+def find_window():
     k32 = ctypes.windll.kernel32
-    hittade = []
+    found = []
 
     @ctypes.WINFUNCTYPE(wt.BOOL, wt.HWND, wt.LPARAM)
     def cb(hwnd, _):
@@ -31,30 +30,30 @@ def hitta_fonster():
             n = wt.DWORD(260)
             if k32.QueryFullProcessImageNameW(h, 0, buf, ctypes.byref(n)):
                 if buf.value.lower().endswith("maplestory.exe"):
-                    hittade.append(hwnd)
+                    found.append(hwnd)
             k32.CloseHandle(h)
         return True
 
     u.EnumWindows(cb, 0)
-    return hittade[0] if hittade else None
+    return found[0] if found else None
 
 
-def main(ut):
-    hwnd = hitta_fonster()
+def main(out):
+    hwnd = find_window()
     if not hwnd:
-        print("MapleStory.exe har inget synligt fönster")
+        print("MapleStory.exe has no visible window")
         return 1
     c = wt.RECT()
     u.GetClientRect(hwnd, ctypes.byref(c))
     p = wt.POINT(0, 0)
     u.ClientToScreen(hwnd, ctypes.byref(p))
-    print("överst:", u.GetForegroundWindow() == hwnd,
-          "| minimerat:", bool(u.IsIconic(hwnd)),
-          "| klientyta:", c.right, "x", c.bottom, "vid", p.x, p.y)
+    print("in front:", u.GetForegroundWindow() == hwnd,
+          "| minimised:", bool(u.IsIconic(hwnd)),
+          "| client area:", c.right, "x", c.bottom, "at", p.x, p.y)
     img = ImageGrab.grab(bbox=(p.x, p.y, p.x + c.right, p.y + c.bottom),
                          all_screens=True)
-    img.save(ut)
-    print("sparad:", ut)
+    img.save(out)
+    print("saved:", out)
     return 0
 
 

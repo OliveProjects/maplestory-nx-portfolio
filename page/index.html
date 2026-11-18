@@ -3,16 +3,16 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>MapleStory · {{SAJTNAMN}}</title>
+    <title>MapleStory · {{SITE_NAME}}</title>
     <meta name="description" content="The cosmetics in my MapleStory Classic inventory, valued in mesos like a portfolio.">
-    <link rel="canonical" href="{{SAJT_URL}}">
+    <link rel="canonical" href="{{SITE_URL}}">
     <!-- share_image.py fills in these tags every hour (value and image time). -->
     <meta property="og:type"        content="website">
-    <meta property="og:url"         content="{{SAJT_URL}}">
-    <meta property="og:site_name"   content="{{SAJTNAMN}}">
-    <meta property="og:title"       content="MapleStory · {{SAJTNAMN}}">
+    <meta property="og:url"         content="{{SITE_URL}}">
+    <meta property="og:site_name"   content="{{SITE_NAME}}">
+    <meta property="og:title"       content="MapleStory · {{SITE_NAME}}">
     <meta property="og:description" content="The cosmetics in my MapleStory Classic inventory, valued in mesos like a portfolio.">
-    <meta property="og:image"       content="{{SAJT_URL}}og.png">
+    <meta property="og:image"       content="{{SITE_URL}}og.png">
     <meta property="og:image:width" content="1200">
     <meta property="og:image:height" content="630">
     <meta name="twitter:card"       content="summary_large_image">
@@ -161,7 +161,7 @@
 <main>
     <header>
         <div>
-            <h1>{{SAJTNAMN}}</h1>
+            <h1>{{SITE_NAME}}</h1>
             <p class="lead">My MapleStory Classic NX cosmetics, valued in mesos like a portfolio.</p>
         </div>
         <!-- The credit maplestory.market's API terms require (point 2), next
@@ -220,11 +220,11 @@
 
     <footer>
         <p>Prices from <a href="https://maplestory.market/{{REF_Q}}">maplestory.market</a>. Icons from the game's own files.</p>
-        <p>© {{AR}} {{SAJTNAMN}}</p>
+        <p>© {{YEAR}} {{SITE_NAME}}</p>
     </footer>
 </main>
 <script>
-const TZ = '{{TIDSZON}}';
+const TZ = '{{TIME_ZONE}}';
 const REF = '{{REF_Q}}';
 /* The NX rates, per 1k NX: what it costs in mesos in the game (with the
    date each rate started) and in dollars from Nexon. Read from
@@ -577,7 +577,7 @@ async function load() {
     const openings = shops ? Object.values(shops.openings || {}) : [];
     if (openings.length) document.getElementById('shops').innerHTML =
         `My shops have sold <b>${whole(openings.reduce((s, o) => s + o.mesos, 0))}</b> mesos in <b>${openings.reduce((s, o) => s + o.sales, 0)}</b> sales. ` +
-        `Shop sales from <a href="https://maplestory.market/owners/{{BUTIK}}${REF}">maplestory.market</a>.`;
+        `Shop sales from <a href="https://maplestory.market/owners/{{SHOP}}${REF}">maplestory.market</a>.`;
 }
 load();
 </script>

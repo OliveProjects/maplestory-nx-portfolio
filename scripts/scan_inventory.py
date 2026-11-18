@@ -1,28 +1,31 @@
-"""Går igenom en öppen inventarieflik och sparar tooltipen för varje föremål.
+"""Goes through an open inventory tab and saves a view of the grid for every
+scroll position (and, without --no-hover, each item's tooltip).
 
-Kräver att Item Inventory ligger öppet på Deco-fliken (var som helst i
-fönstret; hitta_inventariet letar upp det). Körs som administratör, eftersom
-spelet bara tar emot inmatning från ett program med samma behörighetsnivå.
+Needs Item Inventory open on the Deco tab (anywhere in the window;
+find_inventory looks for it). Runs as administrator, since the game only
+takes input from a program at the same privilege level.
 
-UPPMÄTT I 3840x2160 (spelets klientyta i 4K, där spelet ritar inventariet
-2,75 gånger förstorat). Rutnätets mått nedan (X0, DX, Y0, DY, CELL),
-tab_template.png, DECO_FLIK och SKALA i icon_match.py hör till just den
-upplösningen. Med en annan upplösning stannar skriptet direkt i stället för
-att peka runt på fel ställen; mät då om måtten eller skriv inventariet för
-hand (sync.py --lista, se LASMIG.md).
+MEASURED IN 3840x2160 (the game's client area in 4K, where it draws the
+inventory 2.75 times enlarged). The grid sizes below (X0, DX, Y0, DY, CELL),
+tab_template.png, DECO_TAB and SCALE in icon_match.py belong to that
+resolution. In another resolution the script stops at once instead of
+pointing at the wrong places; re-measure the sizes, read your own
+screenshots (from_screenshots.py, any 16:9 resolution) or write the
+inventory by hand (sync.py --list, see the README).
 
-  python scan_inventory.py <utmapp>
+  python scan_inventory.py <out folder> [--no-hover]
 
-Hovrar en hel sida, scrollar sex rader (ett hjulsteg = en rad) och hovrar
-de rader som är nya. Varje hjulsteg kontrolleras för sig: ett steg som spelet
-inte hann med får två nya försök innan det räknas som botten. Första versionen
-tog ett enda uteblivet steg för botten och missade de sista raderna.
+Hovers a whole page, scrolls six rows (one wheel step = one row) and hovers
+the rows that are new. Every wheel step is checked on its own: a step the
+game did not keep up with gets two more tries before it counts as the
+bottom. The first version took a single missed step for the bottom and
+lost the last rows.
 
-Skriver i utmappen:
-  vy_NN.png          rutnätet när inventariets rad NN står överst
-  tips_NN_r_c.png    tooltipen för rad r, kolumn c i den vyn
-  logg.txt           vad som hände, rad för rad
-Avbryter om spelet slutar ligga överst.
+Writes in the out folder:
+  view_NN.png        the grid when the inventory's row NN is at the top
+  tips_NN_r_c.png    the tooltip for row r, column c in that view
+  log.txt            what happened, line by line
+Stops if the game is no longer in front.
 """
 import ctypes
 import ctypes.wintypes as wt
@@ -33,17 +36,17 @@ import time
 import numpy as np
 from PIL import ImageGrab
 
-from screenshot import hitta_fonster
+from screenshot import find_window
 
 u = ctypes.windll.user32
 
-# Rutnätet i klientytans pixlar, i klientytan UPPMATT.
-UPPMATT = (3840, 2160)
-X0, DX, KOLUMNER = 2486, 100, 5
-Y0, DY, RADER = 600, 96, 6
-CELL = 36            # halv sida på rutan som bedöms tom/inte tom
-MAX_RADER = 200
-UTAN_HOVRING = False
+# The grid in client-area pixels, in a client area of MEASURED.
+MEASURED = (3840, 2160)
+X0, DX, COLUMNS = 2486, 100, 5
+Y0, DY, ROWS = 600, 96, 6
+CELL = 36            # half the side of the square judged empty or not
+MAX_ROWS = 200
+NO_HOVER = False
 
 
 class MOUSEINPUT(ctypes.Structure):
@@ -62,220 +65,221 @@ class INPUT(ctypes.Structure):
 MOVE, ABSOLUTE, VIRTUALDESK, WHEEL = 0x0001, 0x8000, 0x4000, 0x0800
 
 
-def _skicka(flags, dx=0, dy=0, data=0):
+def _send(flags, dx=0, dy=0, data=0):
     inp = INPUT(type=0)
     inp.mi = MOUSEINPUT(dx, dy, ctypes.c_ulong(data & 0xFFFFFFFF).value,
                         flags, 0, 0)
     if u.SendInput(1, ctypes.byref(inp), ctypes.sizeof(INPUT)) != 1:
-        raise OSError("SendInput blockerades")
+        raise OSError("SendInput was blocked")
 
 
-class Spel:
-    def __init__(self, logg):
-        self.logg = logg
-        self.hwnd = hitta_fonster()
+class Game:
+    def __init__(self, log):
+        self.log = log
+        self.hwnd = find_window()
         if not self.hwnd:
-            raise SystemExit("MapleStory.exe har inget synligt fönster")
+            raise SystemExit("MapleStory.exe has no visible window")
         p = wt.POINT(0, 0)
         u.ClientToScreen(self.hwnd, ctypes.byref(p))
         self.ox, self.oy = p.x, p.y
         self.vl, self.vt = u.GetSystemMetrics(76), u.GetSystemMetrics(77)
         self.vw, self.vh = u.GetSystemMetrics(78), u.GetSystemMetrics(79)
 
-    def kontroll(self):
+    def check(self):
         if u.GetForegroundWindow() != self.hwnd:
-            self.logg("the game is no longer in front, stopping")
+            self.log("the game is no longer in front, stopping")
             raise SystemExit(2)
 
-    def flytta(self, x, y):
-        self.kontroll()
+    def move(self, x, y):
+        self.check()
         sx, sy = self.ox + x, self.oy + y
-        _skicka(MOVE | ABSOLUTE | VIRTUALDESK,
-                round((sx - self.vl) * 65535 / (self.vw - 1)),
-                round((sy - self.vt) * 65535 / (self.vh - 1)))
+        _send(MOVE | ABSOLUTE | VIRTUALDESK,
+              round((sx - self.vl) * 65535 / (self.vw - 1)),
+              round((sy - self.vt) * 65535 / (self.vh - 1)))
 
-    def hjul(self, steg):
-        self.kontroll()
-        _skicka(WHEEL, data=120 * steg)
+    def wheel(self, steps):
+        self.check()
+        _send(WHEEL, data=120 * steps)
 
-    def bild(self, x0, y0, x1, y1):
+    def grab(self, x0, y0, x1, y1):
         x0, y0 = max(0, x0), max(0, y0)
         return ImageGrab.grab(bbox=(self.ox + x0, self.oy + y0,
                                     self.ox + x1, self.oy + y1),
                               all_screens=True)
 
 
-def rutnat(spel):
-    return spel.bild(X0 - 52, Y0 - 44, X0 + DX * (KOLUMNER - 1) + 52,
-                     Y0 + DY * (RADER - 1) + 48)
+def grid(game):
+    return game.grab(X0 - 52, Y0 - 44, X0 + DX * (COLUMNS - 1) + 52,
+                     Y0 + DY * (ROWS - 1) + 48)
 
 
-def ar_tom(img, r, c):
+def is_empty(img, r, c):
     a = np.asarray(img.convert("L"), dtype=np.int16)
     cx, cy = 52 + DX * c, 44 + DY * r
     return a[cy - CELL:cy + CELL, cx - CELL:cx + CELL].std() < 6
 
 
-SLOT = (225, 223, 213)          # inventarierutans färg i spelet
-DECO_FLIK = (2900, 488, 2990, 532)   # Deco-flikens yta i klientytan
-# Flikraden Equip..Cash (utan Deco, så att vald flik inte spelar roll),
-# urklippt där den låg 2026-10-25. Rutnätets X0/Y0 och DECO_FLIK ovan hör
-# till just det läget; hitta_inventariet flyttar dem dit inventariet ligger nu.
-MALL_FLIKAR = os.path.join(os.path.dirname(os.path.abspath(__file__)), "tab_template.png")
-MALL_LAGE = (2424, 486)
+SLOT = (225, 223, 213)          # the inventory slot's colour in the game
+DECO_TAB = (2900, 488, 2990, 532)   # the Deco tab's area in the client area
+# The tab row Equip..Cash (without Deco, so that the selected tab doesn't
+# matter), cut out where it was on 2026-10-25. The grid's X0/Y0 and DECO_TAB
+# above belong to that position; find_inventory moves them to where the
+# inventory is now.
+TAB_TEMPLATE = os.path.join(os.path.dirname(os.path.abspath(__file__)), "tab_template.png")
+TAB_TEMPLATE_POS = (2424, 486)
 
 
-def hitta_inventariet(spel):
-    """Letar upp Item Inventory var det än ligger i spelet och flyttar
-    rutnätet dit. Ger en felbeskrivning, eller None. Första riktiga körningen
-    (2026-10-26) stoppades för att inventariet låg på ett annat ställe än när
-    rutnätet mättes upp; nu spelar läget ingen roll.
-    Uppmätt: träff 1,00 där flikraden finns, 0,24 utan öppet inventarie."""
-    global X0, Y0, DECO_FLIK
+def find_inventory(game):
+    """Looks for Item Inventory wherever it is in the game and moves the
+    grid there. Returns a description of what is wrong, or None. The first
+    real run (2026-10-26) stopped because the inventory was somewhere else
+    than when the grid was measured; now its position doesn't matter.
+    Measured: match 1.00 where the tab row is, 0.24 without an open inventory."""
+    global X0, Y0, DECO_TAB
     import cv2
     c = wt.RECT()
-    u.GetClientRect(spel.hwnd, ctypes.byref(c))
-    hel = cv2.cvtColor(np.asarray(spel.bild(0, 0, c.right, c.bottom).convert("RGB")), cv2.COLOR_RGB2BGR)
-    mall = cv2.imread(MALL_FLIKAR)
-    res = cv2.matchTemplate(hel, mall, cv2.TM_CCOEFF_NORMED)
-    _, traff, _, (x, y) = cv2.minMaxLoc(res)
-    if traff < 0.8:
-        return "cannot find Item Inventory in the game (match %.2f). Open it (key I)." % traff
-    dx, dy = x - MALL_LAGE[0], y - MALL_LAGE[1]
+    u.GetClientRect(game.hwnd, ctypes.byref(c))
+    whole = cv2.cvtColor(np.asarray(game.grab(0, 0, c.right, c.bottom).convert("RGB")), cv2.COLOR_RGB2BGR)
+    template = cv2.imread(TAB_TEMPLATE)
+    res = cv2.matchTemplate(whole, template, cv2.TM_CCOEFF_NORMED)
+    _, match, _, (x, y) = cv2.minMaxLoc(res)
+    if match < 0.8:
+        return "cannot find Item Inventory in the game (match %.2f). Open it (key I)." % match
+    dx, dy = x - TAB_TEMPLATE_POS[0], y - TAB_TEMPLATE_POS[1]
     X0, Y0 = X0 + dx, Y0 + dy
-    a, b, c_, d = DECO_FLIK
-    DECO_FLIK = (a + dx, b + dy, c_ + dx, d + dy)
+    a, b, c_, d = DECO_TAB
+    DECO_TAB = (a + dx, b + dy, c_ + dx, d + dy)
     return None
 
 
-def ratt_flik(spel):
-    """Ligger Item Inventory öppet på Deco-fliken, på det ställe rutnätet är
-    uppmätt? Ger en felbeskrivning, eller None. Körs innan något scrollas
-    eller hovras, så att skriptet aldrig börjar peka runt på fel ställe.
+def right_tab(game):
+    """Is Item Inventory open on the Deco tab, where the grid is measured?
+    Returns a description of what is wrong, or None. Runs before anything is
+    scrolled or hovered, so the script never starts pointing at the wrong place.
 
-    Uppmätt 2026-10-26: en full sida har minst 51 av 120 rutor med rätt
-    hörnfärg (ikonerna täcker resten), utan inventarie 0. Vald Deco-flik är
-    till 71 % rosa, ovalda flikar till 0 %."""
-    a = np.asarray(rutnat(spel).convert("RGB"), dtype=np.int16)
-    traff = 0
-    for r in range(RADER):
-        for c in range(KOLUMNER):
+    Measured 2026-10-26: a full page has at least 51 of 120 slot corners in
+    the right colour (the icons cover the rest), without an inventory 0. The
+    selected Deco tab is 71 % pink, unselected tabs 0 %."""
+    a = np.asarray(grid(game).convert("RGB"), dtype=np.int16)
+    hits = 0
+    for r in range(ROWS):
+        for c in range(COLUMNS):
             for dx, dy in ((-34, -34), (34, -34), (-34, 34), (34, 34)):
                 p = a[44 + DY * r + dy, 52 + DX * c + dx]
-                traff += all(abs(int(p[i]) - SLOT[i]) <= 14 for i in range(3))
-    if traff < 30:
+                hits += all(abs(int(p[i]) - SLOT[i]) <= 14 for i in range(3))
+    if hits < 30:
         return ("cannot find the inventory slots (%d of 120 corners). Open Item "
-                "Inventory in the same place as before." % traff)
-    f = np.asarray(spel.bild(*DECO_FLIK).convert("RGB"), dtype=np.int16)
-    rosa = ((f[..., 0] - f[..., 1]) > 50).mean()
-    if rosa < 0.4:
-        return "the Deco tab is not selected (%.0f %% pink). Click Deco." % (rosa * 100)
+                "Inventory in the same place as before." % hits)
+    f = np.asarray(game.grab(*DECO_TAB).convert("RGB"), dtype=np.int16)
+    pink = ((f[..., 0] - f[..., 1]) > 50).mean()
+    if pink < 0.4:
+        return "the Deco tab is not selected (%.0f %% pink). Click Deco." % (pink * 100)
     return None
 
 
-def main(ut):
-    os.makedirs(ut, exist_ok=True)
-    loggfil = open(os.path.join(ut, "logg.txt"), "w", encoding="utf-8")
+def main(out):
+    os.makedirs(out, exist_ok=True)
+    logfile = open(os.path.join(out, "log.txt"), "w", encoding="utf-8")
 
-    def logg(s):
-        loggfil.write(time.strftime("%H:%M:%S ") + s + "\n")
-        loggfil.flush()
+    def log(s):
+        logfile.write(time.strftime("%H:%M:%S ") + s + "\n")
+        logfile.flush()
 
-    spel = Spel(logg)
+    game = Game(log)
     start = wt.POINT()
     u.GetCursorPos(ctypes.byref(start))
-    # UAC-rutan tar fokus; en minut att klicka i spelet igen.
-    # 30 s räckte inte första gången.
+    # The UAC prompt takes the focus; a minute to click in the game again.
+    # 30 s was not enough the first time.
     for _ in range(120):
-        if u.GetForegroundWindow() == spel.hwnd:
+        if u.GetForegroundWindow() == game.hwnd:
             break
         time.sleep(0.5)
-    spel.kontroll()
-    logg("start, the game is in front")
-    yta = wt.RECT()
-    u.GetClientRect(spel.hwnd, ctypes.byref(yta))
-    fel = None
-    if (yta.right, yta.bottom) != UPPMATT:
-        fel = ("the game's client area is %dx%d, but the grid is measured in %dx%d. "
-               "Run the game in that resolution or use sync.py --lista (Sync list.bat)."
-               % (yta.right, yta.bottom, UPPMATT[0], UPPMATT[1]))
-    if not fel:
-        fel = hitta_inventariet(spel)
-    if not fel:
-        logg("inventory found, the grid starts at %d,%d" % (X0, Y0))
-        fel = ratt_flik(spel)
-    if fel:
-        logg("ERROR: " + fel)
-        loggfil.close()
+    game.check()
+    log("start, the game is in front")
+    area = wt.RECT()
+    u.GetClientRect(game.hwnd, ctypes.byref(area))
+    error = None
+    if (area.right, area.bottom) != MEASURED:
+        error = ("the game's client area is %dx%d, but the grid is measured in %dx%d. "
+                 "Run the game in that resolution, or use your own screenshots or your list "
+                 "(Sync.bat, options 2 and 3)." % (area.right, area.bottom, MEASURED[0], MEASURED[1]))
+    if not error:
+        error = find_inventory(game)
+    if not error:
+        log("inventory found, the grid starts at %d,%d" % (X0, Y0))
+        error = right_tab(game)
+    if error:
+        log("ERROR: " + error)
+        logfile.close()
         raise SystemExit(3)
 
-    def stilla_vy():
-        # Pekaren bort från rutorna innan bilden: spelet ritar sin egen
-        # pekare och tooltip i rutnätet, och de hinner inte försvinna om
-        # bilden tas direkt efter flytten.
-        spel.flytta(X0 + 2 * DX, Y0 - 160)
+    def still_view():
+        # The pointer away from the slots before the picture: the game draws
+        # its own pointer and tooltip in the grid, and they don't have time
+        # to go away if the picture is taken right after the move.
+        game.move(X0 + 2 * DX, Y0 - 160)
         time.sleep(0.6)
-        return rutnat(spel)
+        return grid(game)
 
-    def ett_steg_ned(fore):
-        """Ett hjulsteg nedåt. Ger nya vyn, eller None om inget rörde sig
-        efter tre försök (botten)."""
-        for forsok in range(3):
-            spel.flytta(X0 + 2 * DX, Y0 + 2 * DY)
+    def one_step_down(before):
+        """One wheel step down. Returns the new view, or None if nothing
+        moved after three tries (the bottom)."""
+        for attempt in range(3):
+            game.move(X0 + 2 * DX, Y0 + 2 * DY)
             time.sleep(0.2)
-            spel.hjul(-1)
-            time.sleep(0.4 + 0.4 * forsok)
-            efter = stilla_vy()
-            skillnad = np.abs(np.asarray(fore.convert("L"), dtype=np.int16)
-                              - np.asarray(efter.convert("L"), dtype=np.int16))
-            if skillnad.mean() > 2:
-                return efter
-            logg("the wheel step did not move (attempt %d)" % (forsok + 1))
+            game.wheel(-1)
+            time.sleep(0.4 + 0.4 * attempt)
+            after = still_view()
+            diff = np.abs(np.asarray(before.convert("L"), dtype=np.int16)
+                          - np.asarray(after.convert("L"), dtype=np.int16))
+            if diff.mean() > 2:
+                return after
+            log("the wheel step did not move (attempt %d)" % (attempt + 1))
         return None
 
     try:
-        spel.flytta(X0 + 2 * DX, Y0 + 2 * DY)
+        game.move(X0 + 2 * DX, Y0 + 2 * DY)
         time.sleep(0.3)
-        spel.hjul(60)                       # längst upp
+        game.wheel(60)                       # to the top
         time.sleep(0.8)
-        vy = stilla_vy()
-        overst = 0          # inventariets rad som står överst i vyn
-        klar_t_o_m = -1     # sista inventarierad som hovrats
-        while overst < MAX_RADER:
-            vy.save(os.path.join(ut, "vy_%02d.png" % overst))
-            for r in range(RADER):
-                if overst + r <= klar_t_o_m or UTAN_HOVRING:
+        view = still_view()
+        top = 0             # the inventory row at the top of the view
+        done_to = -1        # the last inventory row hovered
+        while top < MAX_ROWS:
+            view.save(os.path.join(out, "view_%02d.png" % top))
+            for r in range(ROWS):
+                if top + r <= done_to or NO_HOVER:
                     continue
-                for c in range(KOLUMNER):
-                    if ar_tom(vy, r, c):
+                for c in range(COLUMNS):
+                    if is_empty(view, r, c):
                         continue
                     x, y = X0 + DX * c, Y0 + DY * r
-                    spel.flytta(x, y)
+                    game.move(x, y)
                     time.sleep(0.45)
-                    spel.bild(x - 900, y - 900, x + 1100, y + 900).save(
-                        os.path.join(ut, "tips_%02d_%d_%d.png" % (overst, r, c)))
-            klar_t_o_m = overst + RADER - 1
-            logg("rows %d-%d read" % (overst, klar_t_o_m))
-            vy = stilla_vy()
-            botten = False
-            for _ in range(RADER):
-                ny = ett_steg_ned(vy)
-                if ny is None:
-                    botten = True
+                    game.grab(x - 900, y - 900, x + 1100, y + 900).save(
+                        os.path.join(out, "tips_%02d_%d_%d.png" % (top, r, c)))
+            done_to = top + ROWS - 1
+            log("rows %d-%d read" % (top, done_to))
+            view = still_view()
+            bottom = False
+            for _ in range(ROWS):
+                new = one_step_down(view)
+                if new is None:
+                    bottom = True
                     break
-                vy, overst = ny, overst + 1
-            if botten and overst + RADER - 1 <= klar_t_o_m:
-                logg("bottom reached, %d rows" % (klar_t_o_m + 1))
+                view, top = new, top + 1
+            if bottom and top + ROWS - 1 <= done_to:
+                log("bottom reached, %d rows" % (done_to + 1))
                 break
-        logg("done")
+        log("done")
     finally:
         u.SetCursorPos(start.x, start.y)
-        loggfil.close()
+        logfile.close()
 
 
 if __name__ == "__main__":
     ctypes.windll.shcore.SetProcessDpiAwareness(2)
-    # --utan-hovring: bara vyerna, inga tooltipar. sync.py känner igen
-    # föremålen på bilden (icon_match.py) och behöver inte hovra.
-    UTAN_HOVRING = "--utan-hovring" in sys.argv
+    # --no-hover: only the views, no tooltips. sync.py recognises the items
+    # from the picture (icon_match.py) and doesn't need to hover.
+    NO_HOVER = "--no-hover" in sys.argv or "--utan-hovring" in sys.argv
     main(sys.argv[1])

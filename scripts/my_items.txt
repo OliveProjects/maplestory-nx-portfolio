@@ -1,4 +1,4 @@
-# En rad per sort: antalet och namnet som spelet skriver det, eller id:t.
-# Rader som börjar med # hoppas över. Byt ut exemplen mot ditt eget inventarie.
+# One line per kind: the count and the name as the game writes it, or the id.
+# Lines starting with # are skipped. Replace the examples with your own inventory.
 2 Angel Wand
 1 White Label Ring

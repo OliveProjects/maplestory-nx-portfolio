@@ -1,79 +1,67 @@
-"""Grupperar inventarierutorna efter ikon och räknar hur många av varje.
+"""Groups the inventory slots by icon and counts how many of each.
 
-  python group_slots.py <mapp med vy_*.png> <ocr.json>
+  python group_slots.py <folder with view_*.png>
 
-Ikonerna jämförs i stället för OCR-texten, eftersom tooltipen för de högra
-kolumnerna öppnas åt vänster och urklippet då fångar jämförelsen med det
-föremål som bärs. Namnet tas från den ruta i gruppen som står längst till
-vänster.
+The icons are compared to each other (not the tooltip's text), so that the
+same item in several slots ends up in one group, which sync.py then
+recognises once.
 """
-import glob
-import json
-import os
-import re
 import sys
 
 import numpy as np
 from PIL import Image
 
-from scan_inventory import CELL, DX, DY, KOLUMNER, RADER, ar_tom
+from icon_match import views
+from scan_inventory import CELL, COLUMNS, DX, DY, ROWS, is_empty
 
-GRANS = 20   # medelavvikelse efter passning; olika föremål ger över 70
-GLAPP = 10   # rutnätets steg är inte exakt DX/DY, så sök passning ±GLAPP px
-INRE = CELL - GLAPP
+LIMIT = 20   # mean difference after fitting; different items give over 70
+SLACK = 10   # the grid's step is not exactly DX/DY, so look for a fit within ±SLACK px
+INNER = CELL - SLACK
 
 
-def ikon(vy, r, c):
-    a = np.asarray(vy.convert("L"), dtype=np.int16)
+def icon(view, r, c):
+    a = np.asarray(view.convert("L"), dtype=np.int16)
     cx, cy = 52 + DX * c, 44 + DY * r
     return a[cy - CELL:cy + CELL, cx - CELL:cx + CELL]
 
 
-def avstand(a, b):
-    """Minsta medelavvikelse mellan mitten av a och b förskjuten upp till
-    GLAPP px åt varje håll."""
-    k = a[GLAPP:GLAPP + 2 * INRE, GLAPP:GLAPP + 2 * INRE]
-    return min(np.abs(k - b[dy:dy + 2 * INRE, dx:dx + 2 * INRE]).mean()
-               for dy in range(2 * GLAPP + 1) for dx in range(2 * GLAPP + 1))
+def distance(a, b):
+    """The smallest mean difference between the middle of a and b, shifted up
+    to SLACK px each way."""
+    k = a[SLACK:SLACK + 2 * INNER, SLACK:SLACK + 2 * INNER]
+    return min(np.abs(k - b[dy:dy + 2 * INNER, dx:dx + 2 * INNER]).mean()
+               for dy in range(2 * SLACK + 1) for dx in range(2 * SLACK + 1))
 
 
-def grupper(mapp, ocrfil=None):
-    """[{"rutor": [(rad, kol)], "texter": [(kol, [rader])]}], en per ikon,
-    i inventariets ordning. texter är OCR-läsningarna för gruppens rutor
-    (tomma utan ocrfil; sync.py känner igen på bilden i stället)."""
-    # vy_NN.png: inventariets rad NN står överst i vyn.
-    vyer = {int(re.findall(r"\d+", os.path.basename(f))[0]): f
-            for f in glob.glob(os.path.join(mapp, "vy_[0-9]*.png"))}
-    ocr = ({(e["rad"], e["kolumn"]): e["text"]
-            for e in json.load(open(ocrfil, encoding="utf-8"))} if ocrfil else {})
-    grp = []   # [ikon, [(rad, kol)]]
-    for g in range(max(vyer) + RADER):
-        k = max(t for t in vyer if t <= g)
-        vy = Image.open(vyer[k])
+def groups(folder):
+    """[{"slots": [(row, column)]}], one per icon, in the inventory's order.
+    view_NN.png: the inventory's row NN is at the top of the view."""
+    v = views(folder)
+    found = []   # [icon, [(row, column)]]
+    for g in range(max(v) + ROWS):
+        k = max(t for t in v if t <= g)
+        view = Image.open(v[k])
         r = g - k
-        for c in range(KOLUMNER):
-            if ar_tom(vy, r, c):
+        for c in range(COLUMNS):
+            if is_empty(view, r, c):
                 continue
-            i = ikon(vy, r, c)
-            for g_ in grp:
-                if avstand(g_[0], i) < GRANS:
-                    g_[1].append((g, c))
+            i = icon(view, r, c)
+            for group in found:
+                if distance(group[0], i) < LIMIT:
+                    group[1].append((g, c))
                     break
             else:
-                grp.append([i, [(g, c)]])
-    return [{"rutor": rutor,
-             "texter": [(c, ocr.get((g, c), [])) for g, c in rutor]}
-            for _, rutor in grp]
+                found.append([i, [(g, c)]])
+    return [{"slots": slots} for _, slots in found]
 
 
-def main(mapp, ocrfil):
+def main(folder):
     sys.stdout.reconfigure(encoding="utf-8")
-    gs = grupper(mapp, ocrfil)
-    for gr in gs:
-        c, text = min(gr["texter"], key=lambda t: t[0])
-        print("%2d st  rad %2d  %s" % (len(gr["rutor"]), gr["rutor"][0][0], " | ".join(text) or "?"))
-    print(sum(len(g["rutor"]) for g in gs), "föremål i", len(gs), "grupper")
+    gs = groups(folder)
+    for g in gs:
+        print("%2d  from row %2d" % (len(g["slots"]), g["slots"][0][0]))
+    print(sum(len(g["slots"]) for g in gs), "items in", len(gs), "groups")
 
 
 if __name__ == "__main__":
-    main(sys.argv[1], sys.argv[2])
+    main(sys.argv[1])
