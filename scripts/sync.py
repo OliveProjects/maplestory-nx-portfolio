@@ -133,16 +133,31 @@ def library_up_to_date():
         return
     if os.path.exists(path) and os.path.getmtime(path) >= newest:
         return
-    print("  The game was updated %s, after the icon library was built. Building it again so that"
-          % datetime.datetime.fromtimestamp(newest).strftime("%d %b %H:%M"))
-    print("  new items are recognised (about a minute) ...")
+    if not os.path.exists(path):
+        print("  Building the icon library from the game's files (the first time, about a minute) ...")
+    else:
+        print("  The game was updated %s, after the icon library was built. Building it again so that"
+              % datetime.datetime.fromtimestamp(newest).strftime("%d %b %H:%M"))
+        print("  new items are recognised (about a minute) ...")
     import icon_library
     icon_library.main()
 
 
-def recognise(folder):
+def pick_twin(where, twins, names, ids):
+    """Asks which of several items with the same icon it is. Returns its
+    index, or None if the answer isn't one of them."""
+    print("\n  %s look exactly like more than one item in the game (same icon):" % where)
+    for n, t in enumerate(twins, 1):
+        print("    %d  %s (%s)" % (n, names[t], ids[t]))
+    answer = input("  Which is it? Type the number (Enter = skip): ").strip()
+    return twins[int(answer) - 1] if answer.isdigit() and 1 <= int(answer) <= len(twins) else None
+
+
+def recognise(folder, ask=False):
     """{id: (name, category, count)} in the inventory's order, and a list of
-    groups that could not be recognised with certainty."""
+    groups that could not be recognised with certainty. ask: ask the player
+    which item it is when several share an icon and none was in the last sync
+    (the first sync of a White Label Ring, for example), instead of stopping."""
     step(2, "Recognising the items")
     print("  Each slot is compared with the game's own icons. This runs on the")
     print("  computer; the game is no longer needed.")
@@ -190,8 +205,13 @@ def recognise(folder):
         twins = lib.twins[lib.representative[i]]
         if len(twins) > 1:
             known = owned(i)
+            if known is None and ask:
+                progress("")
+                sys.__stdout__.write("\r")
+                known = pick_twin(where, twins, lib.names, lib.ids)
             if known is None:
-                uncertain.append("%s: same icon as %s; write it in my_items.txt with the id"
+                uncertain.append("%s: same icon as %s; run the sync again and pick the number, "
+                                 "or write the inventory in my_items.txt with the id"
                                  % (where, ", ".join("%s (%s)" % (lib.names[t], lib.ids[t]) for t in twins)))
                 continue
             i = known
@@ -374,7 +394,7 @@ def main(args):
             shutil.rmtree(folder, ignore_errors=True)
             os.makedirs(folder)
             scan(folder)
-        found, uncertain = recognise(folder)
+        found, uncertain = recognise(folder, ask=not yes)
     step(3, "Comparing with the last sync")
     print("  %d items in %d kinds." % (sum(c for _, _, c in found.values()), len(found)))
     if uncertain:

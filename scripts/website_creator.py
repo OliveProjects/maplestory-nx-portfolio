@@ -145,8 +145,9 @@ def set_up_data_repo(site_repo):
     deploy key that can write only to it, stored as the site repo's secret
     DATA_DEPLOY_KEY. The key is made here and never saved on this computer."""
     if not shutil.which("ssh-keygen"):
-        print("  ssh-keygen is missing, so the history stays in the Actions cache. Install Git for")
-        print("  Windows (it includes ssh-keygen) and run python website_creator.py --update.")
+        print("  ssh-keygen is missing, so the history stays in the Actions cache. Turn on Windows'")
+        print("  OpenSSH Client (Settings → System → Optional features) and run")
+        print("  python website_creator.py --update.")
         return False
     data_repo = site_repo + "-data"
     if not output(["gh", "repo", "view", data_repo, "--json", "name", "-q", ".name"]):
@@ -266,13 +267,14 @@ DONE. Your site: %s
 (GitHub Pages can take a few minutes the first time.)
 
 Next:
-  1. python icon_library.py      builds the icon library from the game files (once)
-  2. Sync.bat                    the first sync: pick how to read your Deco tab
-                                  (scan, your own screenshots, or my_items.txt)
-  3. Wait. The hourly job fetches each item's price history, five items per
-     hour, and builds the first prices when all are fetched. You can follow
-     it under the repo's Actions tab.
-After that, run Sync.bat whenever you buy or sell something.
+  1. In the game, open Item Inventory on the Deco tab and take screenshots
+     (Print Screen), scrolling a few rows between them, down to the bottom.
+  2. Double-click Sync.bat and pick 2 (your screenshots). The first time it
+     also builds the icon library from the game's files, about a minute.
+  3. Wait. The hourly job fetches each item's price history, five items an
+     hour, and builds the first prices when all are fetched (about 9 hours
+     for 45 kinds). You can follow it under the repo's Actions tab.
+After that, run Sync.bat whenever you buy, sell, give away or use something.
 """ % site_url)
 
 

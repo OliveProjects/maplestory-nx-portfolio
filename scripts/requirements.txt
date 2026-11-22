@@ -1,5 +1,8 @@
 # The computer with the game (Windows): everything below.
-# A server: only Pillow (for the share image); the rest is the standard library.
+# A server: Pillow (for the share image) and, on Windows, tzdata.
 Pillow>=10.1
 numpy
 opencv-python
+# Windows has no time zone database of its own; without this the scripts stop
+# at once with "No time zone found with key Europe/Stockholm".
+tzdata
