@@ -53,6 +53,8 @@ TZ = cfg.TIME_ZONE  # the page's time zone; the day ends at midnight there
 # was 0.25; one day the account really rose ~29 % (a Founder crate left the
 # Cash Shop and two items doubled).
 MAX_JUMP = 0.40
+# Windows that rest on thin data: left out of the jump check (see check()).
+THIN = ("7d", "stale")
 
 
 def market_id(iid):
@@ -82,6 +84,13 @@ def check(updates):
     for a, b in zip(updates, updates[1:]):
         # The price movement on b's counts: buys and sales are no jump.
         both = [i for i in b["qty"] if i in a["prices"] and i in b["prices"]]
+        # Only items priced from real sales (a 24h or 72h window) on both days.
+        # A price from a week of thin or no sales lags behind, so the jump when
+        # sales come back is real: in November 2026 the market recorded almost
+        # nothing for two weeks, and on the day it came back the prices rose
+        # 66 %, which stopped every rebuild across those days.
+        if a.get("basis") and b.get("basis"):
+            both = [i for i in both if a["basis"].get(i) not in THIN and b["basis"].get(i) not in THIN]
         before = sum(a["prices"][i] * b["qty"][i] for i in both)
         after = sum(b["prices"][i] * b["qty"][i] for i in both)
         if before and abs(after / before - 1) > MAX_JUMP:
@@ -278,6 +287,9 @@ def rebuild(data_dir, out):
             point["assumed_qty"] = True
         updates.append(point)
         day += datetime.timedelta(days=1)
+    # Days before the history starts have no prices at all: leave them out.
+    while updates and not updates[0]["prices"]:
+        updates.pop(0)
     check(updates)
     t = day_end(day - datetime.timedelta(days=1))
     try:
@@ -442,7 +454,14 @@ def hours(data_dir, out_file, start=None):
     if data.get("source") != "maplestory.market":
         return
     updates = data["updates"]
-    old = json.load(open(HOURS, encoding="utf-8"))["points"] if os.path.exists(HOURS) else []
+    if os.path.exists(HOURS):
+        old = json.load(open(HOURS, encoding="utf-8"))["points"]
+    elif out_file and os.path.exists(out_file):
+        # The store is gone (a new data repo, or an emptied Actions cache):
+        # start from the published hourly.json, so no hour already shown is lost.
+        old = json.load(open(out_file, encoding="utf-8"))["points"]
+    else:
+        old = []
     history = {}
     for u in updates:
         for i in u["qty"]:

@@ -9,9 +9,10 @@ by itself once everything is fetched.
 
 The API key comes from the repo secret MAPLESTORY_MARKET_KEY, written to
 api_key.txt by the workflow and deleted after the run. The fetched history
-(history/, owners/, daily/, hours.json) is kept in the Actions cache and
-never committed: maplestory.market's terms do not allow republishing their
-data in bulk.
+(history/, owners/, daily/, hours.json) is kept in your private data repo
+(<site repo>-data, which website_creator.py makes), or in the Actions cache
+if there is none. It is never committed to the public site repo:
+maplestory.market's terms do not allow republishing their data in bulk.
 
     python actions_job.py
 """
@@ -31,6 +32,10 @@ import settings as cfg  # noqa: E402
 # Actions). On your own server, set PORTFOLIO_WEB to the folder the web
 # server shows, and keep the scripts and api_key.txt outside it.
 WEB = os.path.abspath(os.environ.get("PORTFOLIO_WEB") or os.path.join(HERE, ".."))
+# PORTFOLIO_NO_FETCH=1: don't call the API, only work from the history there
+# is. For a second job on the same key while another job fetches (the key has
+# 6 calls an hour), with history/ pointing to that job's folder.
+NO_FETCH = os.environ.get("PORTFOLIO_NO_FETCH") == "1"
 DATA = cfg.data_dir(WEB)
 PRICES = os.path.join(DATA, "prices.json")
 LIVE = os.path.join(DATA, "live.json")
@@ -51,6 +56,9 @@ def first_fetch():
             if not os.path.exists(os.path.join(fh.HISTORY_DIR, i + ".json"))]
 
     left = missing()
+    if NO_FETCH:
+        print("PORTFOLIO_NO_FETCH: %d histories still missing" % len(left), flush=True)
+        return not left
     print("First fetch: %d calls left (5 per hour)" % len(left), flush=True)
     for api_path, path in left[:fh.PER_HOUR]:
         data, h = fh.fetch(api_path)
@@ -75,7 +83,7 @@ def main():
         print("Every history is fetched: building the prices for the first time.", flush=True)
         if run("market_prices.py", "--rebuild", "--web", WEB, "--no-push"):
             sys.exit("the first price build failed")
-    else:
+    elif not NO_FETCH:
         run("fetch_history.py", "--rotate", "--web", WEB)
     if run("market_prices.py", "--live", "--web", WEB, "--live-out", LIVE):
         print("ERROR: the live prices were not updated")

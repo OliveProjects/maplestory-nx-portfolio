@@ -14,7 +14,11 @@ What it does:
   4. stores your API key as the repo secret MAPLESTORY_MARKET_KEY. The key
      never ends up in the page or in git (maplestory.market's terms)
   5. turns on GitHub Pages: the page is at https://<you>.github.io/<repo>/
-  6. writes settings.json here, so Sync.bat pushes to the new repo
+  6. creates a PRIVATE repo, <repo>-data, where the hourly job keeps the
+     fetched price history, and a deploy key that can write only to it
+     (the secret DATA_DEPLOY_KEY). The history must not be public
+     (maplestory.market's terms), and the Actions cache can be emptied
+  7. writes settings.json here, so Sync.bat pushes to the new repo
 
 You need: a GitHub account, the GitHub CLI (https://cli.github.com, then
 `gh auth login` once), git, and your own API key from maplestory.market.
@@ -23,14 +27,16 @@ import datetime
 import getpass
 import json
 import os
+import re
 import shutil
 import subprocess
 import sys
+import tempfile
 
 HERE = os.path.dirname(os.path.abspath(__file__))
 SETTINGS = os.path.join(HERE, "settings.json")
 SERVER_SCRIPTS = ["settings.py", "fetch_history.py", "market_prices.py", "share_image.py", "actions_job.py"]
-SERVER_IGNORE = "api_key.txt\nhistory/\nowners/\ndaily/\nhours.json\n__pycache__/\n"
+SERVER_IGNORE = "api_key.txt\nhistory\nowners\ndaily\nhours.json\nstore/\n__pycache__/\n"
 # The Swedish names the scripts had before 2026-11-16; --update removes them
 # from .portfolio/ so the old copies don't linger next to the new ones.
 OLD_SERVER_SCRIPTS = ["installningar.py", "installningar.json", "hamta_historik.py", "marknadspriser.py",
@@ -123,6 +129,39 @@ def add_files(repo_dir, settings):
                      "were set up with website_creator.py.\n" % (settings["site_name"], settings["site_url"]))
 
 
+def github_repo(repo_dir):
+    """"owner/name" of the site repo, from its origin remote."""
+    url = output(["git", "-C", repo_dir, "remote", "get-url", "origin"])
+    m = re.search(r"github\.com[:/]([^/]+/[^/]+?)(?:\.git)?$", url)
+    return m.group(1) if m else None
+
+
+def has_data_repo(site_repo):
+    return "DATA_DEPLOY_KEY" in output(["gh", "secret", "list", "-R", site_repo])
+
+
+def set_up_data_repo(site_repo):
+    """The private repo <site repo>-data for the fetched price history, and a
+    deploy key that can write only to it, stored as the site repo's secret
+    DATA_DEPLOY_KEY. The key is made here and never saved on this computer."""
+    if not shutil.which("ssh-keygen"):
+        print("  ssh-keygen is missing, so the history stays in the Actions cache. Install Git for")
+        print("  Windows (it includes ssh-keygen) and run python website_creator.py --update.")
+        return False
+    data_repo = site_repo + "-data"
+    if not output(["gh", "repo", "view", data_repo, "--json", "name", "-q", ".name"]):
+        run(["gh", "repo", "create", data_repo, "--private", "--add-readme",
+             "--description", "Price history for my MapleStory portfolio (private: maplestory.market's terms)"])
+    with tempfile.TemporaryDirectory() as tmp:
+        key = os.path.join(tmp, "data_key")
+        run(["ssh-keygen", "-q", "-t", "ed25519", "-N", "", "-C", "maplestory-portfolio hourly job", "-f", key])
+        run(["gh", "repo", "deploy-key", "add", key + ".pub", "--allow-write",
+             "--title", "Hourly price job (%s)" % site_repo, "-R", data_repo])
+        run(["gh", "secret", "set", "DATA_DEPLOY_KEY", "-R", site_repo], input=open(key).read())
+    print("  The price history is kept in your private repo %s." % data_repo)
+    return True
+
+
 def push(repo_dir, message):
     git = ["git", "-C", repo_dir]
     run(git + ["add", "-A"])
@@ -146,6 +185,12 @@ def update():
     run(["git", "-C", folder, "pull", "-q", "--rebase", "--autostash"])
     add_files(folder, settings)
     push(folder, "Update the page, the scripts and the hourly job")
+    site_repo = github_repo(folder)
+    if site_repo and shutil.which("gh") and not has_data_repo(site_repo):
+        print("\nThe hourly job keeps the fetched price history in the Actions cache, which GitHub")
+        print("can empty. It can keep it in a private repo on your GitHub instead (%s-data)." % site_repo)
+        if ask("Make the private data repo? (Y/n)", "y").lower() in ("y", "yes"):
+            set_up_data_repo(site_repo)
     print("Updated: " + settings["site_url"])
 
 
@@ -206,6 +251,8 @@ def create():
 
     print("Storing the API key as a repo secret ...")
     run(["gh", "secret", "set", "MAPLESTORY_MARKET_KEY", "-R", "%s/%s" % (login, repo)], input=key)
+    print("Making the private repo for the price history ...")
+    set_up_data_repo("%s/%s" % (login, repo))
     print("Turning on GitHub Pages ...")
     pages = subprocess.run(["gh", "api", "-X", "POST", "repos/%s/%s/pages" % (login, repo),
                             "-f", "build_type=legacy", "-f", "source[branch]=main", "-f", "source[path]=/"],

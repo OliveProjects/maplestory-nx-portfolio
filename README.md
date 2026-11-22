@@ -104,6 +104,18 @@ It runs by itself on GitHub every hour (the repo's **Actions** tab shows each ru
 
 You can start a run by hand under Actions → Prices → Run workflow.
 
+### Where your data is kept
+
+Everything stays on your own GitHub account:
+
+| What | Where | Public? |
+|---|---|---|
+| The page, your inventory, the daily prices, the hourly value | your site repo (`maplestory/data/`), committed every hour | yes, it is your page |
+| The fetched hourly price history from maplestory.market | your private repo `REPO-data`, pushed after every run | no |
+| The API key | the repo secret `MAPLESTORY_MARKET_KEY` | no |
+
+The price history can't go in the public repo: maplestory.market's terms don't allow republishing their data in bulk. A private repo only you can see is a cache, which the terms ask for. The API only gives a week back, so the job adds every hour it fetches to that repo, and the history grows from the day you start. `website_creator.py` makes the private repo and a deploy key that can write only to it (the secret `DATA_DEPLOY_KEY`). If you set up your site before this existed, `python website_creator.py --update` offers to make it, and moves what the Actions cache holds into it. Without it the history stays in the Actions cache, which GitHub empties after a week without runs.
+
 ## Day to day
 
 Double-click `Sync.bat`. It asks what you want to do:
