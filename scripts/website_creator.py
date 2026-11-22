@@ -97,6 +97,15 @@ def check_gh():
     return login
 
 
+def server_settings(settings):
+    """The settings the hourly job needs, for .portfolio/settings.json in the
+    public repo. Only what the job uses: not your character names, the
+    game's folder or your screenshot folder (which can hold your Windows
+    user name), which only the sync on your PC needs."""
+    keep = ("ref", "site_name", "site_url", "time_zone", "subfolder", "user_agent")
+    return dict({k: settings[k] for k in keep if k in settings}, site_repo="..", git_remotes=["origin"])
+
+
 def add_files(repo_dir, settings):
     """The page, the server scripts, the workflow and the small files."""
     # The page, filled in from settings.json (make_page.py does the work).
@@ -109,7 +118,7 @@ def add_files(repo_dir, settings):
         if os.path.exists(os.path.join(portfolio, f)):
             os.remove(os.path.join(portfolio, f))
     write_settings(os.path.join(portfolio, "settings.json"),
-                   dict(settings, site_repo="..", git_remotes=["origin"]))
+                   server_settings(settings))
     with open(os.path.join(portfolio, ".gitignore"), "w", encoding="utf-8", newline="\n") as fh:
         fh.write(SERVER_IGNORE)
     workflows = os.path.join(repo_dir, ".github", "workflows")
@@ -207,8 +216,8 @@ def create():
     if output(["gh", "repo", "view", "%s/%s" % (login, repo), "--json", "name", "-q", ".name"]):
         sys.exit("%s/%s already exists. Pick another name, or use --update for a site you already made." % (login, repo))
     site_name = ask("Site name (shown at the top of the page)", "%s's MapleStory" % login)
-    characters = [k.strip() for k in ask("Your characters' names, separated by commas (their shop sales are fetched)").split(",") if k.strip()]
-    shop = ask("Which character the shop credit links to", characters[0] if characters else "")
+    characters = [k.strip() for k in ask("Your characters' names, separated by commas (when an item is gone, the sync "
+                                         "looks up what their shops sold it for)").split(",") if k.strip()]
     print("\nYour API key from maplestory.market (Account page). It is stored as an encrypted")
     print("repo secret and in scripts/api_key.txt on this computer, never in the page or in git.")
     print("When you ask for the key, give the page's address below: their daily check reads it.")
@@ -233,7 +242,7 @@ def create():
     run(["git", "clone", "-q", "https://github.com/%s/%s.git" % (login, repo), folder])
     run(["git", "-C", folder, "checkout", "-q", "-B", "main"])
 
-    settings = {"characters": characters, "shop_character": shop, "ref": ref, "site_name": site_name,
+    settings = {"characters": characters, "ref": ref, "site_name": site_name,
                 "site_url": site_url, "time_zone": time_zone, "site_repo": folder, "subfolder": "maplestory",
                 "git_remotes": ["origin"], "wz_data": wz, "user_agent": site_url}
     write_settings(SETTINGS, settings)

@@ -206,8 +206,7 @@
 
     <h2>Activity</h2>
     <div class="bar-row">
-        <span class="muted" id="shops"></span>
-        <div class="sort" id="act-filter" role="group" aria-label="Show in activity">
+        <div class="sort" id="act-filter" role="group" aria-label="Show in activity" style="margin-left: auto">
             <button type="button" data-f="all" aria-pressed="true">All</button>
             <button type="button" data-f="buy" aria-pressed="false">Bought</button>
             <button type="button" data-f="sell" aria-pressed="false">Sold</button>
@@ -303,8 +302,8 @@ function drawLine(svg, tip, pts, { H, fmt, label }) {
 }
 
 async function load() {
-    const [inv, prices, act, live, hourly, shops, rates] = await Promise.all(
-        ['inventory.json', 'prices.json', 'activity.json', 'live.json', 'hourly.json', 'shops.json', 'nx_rates.json'].map(get));
+    const [inv, prices, act, live, hourly, rates] = await Promise.all(
+        ['inventory.json', 'prices.json', 'activity.json', 'live.json', 'hourly.json', 'nx_rates.json'].map(get));
     if (rates && rates.rates && rates.rates.length) RATES = rates;
     if (!inv || !prices || !prices.updates || !prices.updates.length) {
         document.getElementById('total').textContent = 'No data yet';
@@ -574,10 +573,6 @@ async function load() {
         document.getElementById('activity').scrollIntoView({ block: 'nearest', behavior: 'smooth' });
     });
     drawActivity();
-    const openings = shops ? Object.values(shops.openings || {}) : [];
-    if (openings.length) document.getElementById('shops').innerHTML =
-        `My shops have sold <b>${whole(openings.reduce((s, o) => s + o.mesos, 0))}</b> mesos in <b>${openings.reduce((s, o) => s + o.sales, 0)}</b> sales. ` +
-        `Shop sales from <a href="https://maplestory.market/owners/{{SHOP}}${REF}">maplestory.market</a>.`;
 }
 load();
 </script>

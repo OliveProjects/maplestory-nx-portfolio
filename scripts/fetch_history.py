@@ -57,9 +57,7 @@ def rotate(prices):
     """The hourly job: fetches the history of the PER_HOUR items fetched
     longest ago, round the clock. A round over 43 items takes about nine
     hours, so no item's price is older than that. The game runs round the
-    clock, and so does the rotation. The characters' shops are fetched once
-    a day; a character that answered 404 (never seen with a shop) only once
-    a week."""
+    clock, and so does the rotation."""
     def age(path):
         return os.path.getmtime(path) if os.path.exists(path) else 0
     # Only once the prices rest on the market's history (after --rebuild);
@@ -83,10 +81,11 @@ def rotate(prices):
             break
 
 
-# Other calls that go in the same queue: (path in the API, file here).
-CHARACTERS = cfg.CHARACTERS
-# The latest answer per character; earlier days' answers stay in shops.json.
-EXTRA = [("owners/" + k, os.path.join(HERE, "owners", "%s.json" % k)) for k in CHARACTERS]
+# Other calls that go in the same queue: (path in the API, file here). The
+# characters' shops were fetched here once a day for a "My shops have sold"
+# line on the page; dropped 2026-11-22, so every hourly call goes to prices.
+# The sync still asks about the shops from your PC, to suggest sold prices.
+EXTRA = []
 
 
 def save(path, data):

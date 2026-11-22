@@ -8,7 +8,7 @@ The page shows:
 - the portfolio's value, updated every hour, and a chart of it over time (in mesos, in % and in dollars)
 - unrealised and realised return against what you paid
 - every item with its price, value, share of the total, return and change over 24 hours
-- an activity log of what you bought, sold, gave away or used, and what your shops have sold
+- an activity log of what you bought, sold, gave away or used
 - a share image with the value and the week's chart, shown when the link is posted in for example Discord
 
 **In short, what you do:** install four free programs, ask maplestory.market for a free API key, run one setup script, then take screenshots of your Deco tab and double-click `Sync.bat` whenever your inventory changes. GitHub does the rest every hour, for free.
@@ -61,13 +61,13 @@ Be sure you are fine with this before you start.
 **Over the network**
 - **GitHub**, through `git` and the GitHub CLI: creating your repos, pushing your inventory.
 - **maplestory.market**, with your key:
-  - every hour from GitHub Actions: the price history of five of the items you own (five calls), and your characters' shops about once a day;
-  - from your PC during a sync, only when something is gone from your inventory: one call per character to see what your shops sold, to suggest the price.
+  - every hour from GitHub Actions: the price history of five of the items you own (five calls), plus once a day what sellers ask;
+  - from your PC during a sync, only when something is gone from your inventory: one call per character you listed, to see whether your shop sold it and for how much, so the sync can suggest that price. You confirm or change it.
   The scripts identify themselves with your page's address as User-Agent.
 - Nothing else. No analytics, no other price sites.
 
 **What becomes public**
-- Your site repo and page: your Deco inventory, what you paid, sold and gave away, the value over time, your character names (for the shop sales) and your key's link code (which maplestory.market wants in every link to them).
+- Your site repo and page: your Deco inventory, what you paid, sold and gave away, the value over time, and your key's link code (which maplestory.market wants in every link to them). Your character names stay in `settings.json` on your PC.
 - Never public: the API key (an encrypted repo secret, and `api_key.txt` on your PC), and the fetched price history (your private data repo; maplestory.market's terms don't allow republishing their data in bulk).
 
 ## 1. The API key
@@ -94,8 +94,7 @@ python website_creator.py
 |---|---|
 | name of the new repo | `maplestory-portfolio` |
 | the site's name, shown at the top of the page | `My MapleStory` |
-| your characters' names, comma-separated (their shop sales are fetched) | `MyMain, MyMule` |
-| which character the shop credit links to | `MyMain` |
+| your characters' names, comma-separated (when an item is gone, the sync looks up what their shops sold it for) | `MyMain, MyMule` |
 | your API key (hidden while you type) and its link code | |
 | your time zone, where your day ends | `Europe/Stockholm` |
 | how many mesos 1k NX costs in the game now | `20k` |

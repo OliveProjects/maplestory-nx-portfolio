@@ -3,8 +3,8 @@
 #   5 * * * * /home/YOURNAME/maplestory/scripts/run_hourly.sh >> /home/YOURNAME/maplestory/log.txt 2>&1
 #
 #  1. fetch_history.py --rotate: fetches the hourly history of the five items
-#     fetched longest ago, and the characters' shops once a day. The sixth
-#     call of the hour is left for the sync on your computer.
+#     fetched longest ago. The sixth call of the hour is left for the sync on
+#     your computer.
 #  2. market_prices.py --live: works out the prices from what was fetched and
 #     writes live.json and hourly.json on the site.
 #  3. share_image.py: the share image (og.png) and the Open Graph tags.

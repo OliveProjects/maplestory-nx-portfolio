@@ -6,8 +6,8 @@
 
 website_creator.py runs this for you. It copies ../page/index.html (a plain
 page; restyle it as you like) to <site_repo>/<subfolder>/ and fills in the
-placeholders: the site's name and address, the key's link code (ref), the
-shop's character and the time zone. It does not commit; sync.py and
+placeholders: the site's name and address, the key's link code (ref) and
+the time zone. It does not commit; sync.py and
 website_creator.py do.
 """
 import datetime
@@ -37,7 +37,6 @@ def main(args):
         "{{SITE_NAME}}": cfg.SITE_NAME,
         "{{SITE_URL}}": cfg.SITE_URL,
         "{{REF_Q}}": "?ref=" + urllib.parse.quote(cfg.REF) if cfg.REF else "",
-        "{{SHOP}}": urllib.parse.quote(cfg.SHOP_CHARACTER),
         "{{TIME_ZONE}}": cfg.TIME_ZONE_NAME,
         "{{YEAR}}": str(datetime.date.today().year),
     }

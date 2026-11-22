@@ -45,7 +45,7 @@ HERE = os.path.dirname(os.path.abspath(__file__))
 sys.path.insert(0, HERE)
 
 import settings as cfg  # noqa: E402
-from fetch_history import CHARACTERS, TO_MARKET, api_key  # noqa: E402
+from fetch_history import TO_MARKET, api_key  # noqa: E402
 
 HISTORY_DIR = os.path.join(HERE, "history")
 TZ = cfg.TIME_ZONE  # the page's time zone; the day ends at midnight there
@@ -338,23 +338,6 @@ def api(api_path):
         return json.load(answer)
 
 
-def shops(data_dir, out, answers):
-    """shops.json: everything the characters' shops have sold. /api/owners
-    only shows the latest shops, so every shop (player_id) is kept here and
-    the total grows instead of losing old shops. answers = the owners answers."""
-    path = os.path.join(data_dir, "shops.json")
-    data = json.load(open(path, encoding="utf-8")) if os.path.exists(path) else {"openings": {}}
-    for s in answers:
-        for o in s.get("openings", []):
-            data["openings"][str(o["player_id"])] = {
-                "owner": s["owner_name"], "name": o["name"], "opened_at": o["opened_at"],
-                "last_seen": o["last_seen"], "sales": o["sales"]["sales"],
-                "units": o["sales"]["units"], "mesos": round(o["sales"]["mesos"])}
-    data["updated"] = datetime.datetime.now(TZ).date().isoformat()
-    data["source"] = "maplestory.market"
-    write_json(os.path.join(out, "shops.json"), data)
-
-
 def yesterday_point(data_dir, out, live_file):
     """Yesterday's point in the history: the day's last live value (live.json
     from the run just before midnight). Runs every hour; does something only
@@ -402,15 +385,6 @@ def yesterday_point(data_dir, out, live_file):
         print("could not fetch the asking prices: %s" % e.code)
         rows = []
     write_market(out, point, {i: x for i, x in lv["items"].items()}, rows)
-    # The shops: the answers the rotation fetched (404 = never seen with a shop).
-    answers = []
-    for k in CHARACTERS:
-        path = os.path.join(HERE, "owners", k + ".json")
-        if os.path.exists(path):
-            s = json.load(open(path, encoding="utf-8"))
-            if "owner_name" in s:
-                answers.append(s)
-    shops(data_dir, out, answers)
     return True
 
 

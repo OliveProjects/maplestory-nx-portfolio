@@ -28,8 +28,9 @@ def get(key, default=None):
     return _S.get(OLD_KEYS.get(key, key), default)
 
 
+# Only the sync on your PC uses them: it asks maplestory.market what these
+# characters' shops sold, to suggest the price of an item that is gone.
 CHARACTERS = get("characters", [])
-SHOP_CHARACTER = get("shop_character") or (CHARACTERS[0] if CHARACTERS else "")
 REF = (get("ref") or "").strip()
 SITE_NAME = get("site_name", "")
 SITE_URL = get("site_url").rstrip("/") + "/"
