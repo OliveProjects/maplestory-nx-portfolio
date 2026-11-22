@@ -65,7 +65,9 @@ def picture(n):
 
 
 def main():
-    sys.stdout.reconfigure(encoding="utf-8")
+    # Run from sync.py, stdout is the log writer (Tee), already UTF-8.
+    if hasattr(sys.stdout, "reconfigure"):
+        sys.stdout.reconfigure(encoding="utf-8")
     s = WzArchive(os.path.join(DATA, "String", "String_000.wz"))
     eqp = s.find("Eqp.img").parse()["ClassicWorld"]
     names = {}

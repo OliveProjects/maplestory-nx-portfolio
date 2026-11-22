@@ -63,7 +63,7 @@ python icon_library.py
   - stores the key as the repo secret `MAPLESTORY_MARKET_KEY`
   - turns on GitHub Pages, so the page is at `https://YOURNAME.github.io/REPO/maplestory/`
   - writes `settings.json` here, so that the sync knows where to push
-- **`icon_library.py`** builds the icon library from the game files. It takes a few seconds. Run it again after a big game update.
+- **`icon_library.py`** builds the icon library from the game files. It takes about a minute. After a game update the sync builds it again by itself, so new items (new skins) are recognised: an item the library doesn't have is otherwise read as the nearest one it has, often another colour of the same piece.
 
 ## 3. The first sync
 

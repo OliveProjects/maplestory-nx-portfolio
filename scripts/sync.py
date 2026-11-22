@@ -106,6 +106,40 @@ def scan(out):
     print("  Done with the game. You can let go of the mouse and use the computer.")
 
 
+def library_up_to_date():
+    """Builds icon_library.npz again when the game's files are newer than it.
+
+    New items (on 2026-11-18, 15 skins such as the Dark Musician and Chained
+    Princess sets) only come into the library from the game files. With an
+    old library an item it doesn't have is matched to the nearest icon it
+    does have: tried on all 48 kinds in one inventory, half were flagged as
+    uncertain and the other half came out confidently as another item,
+    usually another colour of the same piece (Black Dress Shoes as Brown)."""
+    path = os.path.join(HERE, "icon_library.npz")
+    data = cfg.WZ_DATA
+    folders = [os.path.join(data, "String")] + [os.path.join(data, "Character", c) for c in
+                                                ("Accessory", "Cap", "Cape", "Coat", "Glove", "Longcoat",
+                                                 "Pants", "PetEquip", "Ring", "Shield", "Shoes", "Weapon")]
+    newest = 0
+    for f in folders:
+        for root, _, files in os.walk(f):
+            for name in files:
+                if name.endswith(".wz"):
+                    newest = max(newest, os.path.getmtime(os.path.join(root, name)))
+    if not newest:
+        if not os.path.exists(path):
+            stop("icon_library.npz is missing and the game's files aren't at %s (wz_data in settings.json)." % data)
+        print("  (the game's files aren't at %s, so the icon library can't be checked for new items)" % data)
+        return
+    if os.path.exists(path) and os.path.getmtime(path) >= newest:
+        return
+    print("  The game was updated %s, after the icon library was built. Building it again so that"
+          % datetime.datetime.fromtimestamp(newest).strftime("%d %b %H:%M"))
+    print("  new items are recognised (about a minute) ...")
+    import icon_library
+    icon_library.main()
+
+
 def recognise(folder):
     """{id: (name, category, count)} in the inventory's order, and a list of
     groups that could not be recognised with certainty."""
@@ -115,8 +149,7 @@ def recognise(folder):
     start = time.time()
     if not any(f.startswith(("view_", "vy_")) for f in os.listdir(folder)):
         stop("  No screenshots in %s: the scan never finished." % folder)
-    if not os.path.exists(os.path.join(HERE, "icon_library.npz")):
-        stop("icon_library.npz is missing: run python icon_library.py first.")
+    library_up_to_date()
     progress("Loading the game's icons ...")
     from icon_match import IconLibrary, recognise_group, slots, split_group
     from group_slots import groups
