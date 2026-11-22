@@ -111,12 +111,14 @@ class IconLibrary:
         return out
 
 
-def recognise_group(lib, windows, top=30):
+def recognise_group(lib, windows, top=30, results=None):
     """The same item in several slots: the errors are added up over the slots
     and the item that fits best overall wins. A single slot can otherwise go
     wrong (one of two Bunny Earmuffs became Transparent Hat, 2026-10-26).
-    Returns (index, mean error, ratio to the second best)."""
-    rankings = [dict((i, e) for e, i in lib.recognise(f, top=top)) for f in windows]
+    results: lib.recognise() for each window, if already worked out.
+    Returns (index, mean error, ratio to the second best, second best index)."""
+    results = results or [lib.recognise(f, top=top) for f in windows]
+    rankings = [dict((i, e) for e, i in r) for r in results]
     everyone = set().union(*rankings)
     total = {}
     for i in everyone:
@@ -124,8 +126,38 @@ def recognise_group(lib, windows, top=30):
         total[i] = sum(r.get(i, max(r.values())) for r in rankings) / len(rankings)
     order = sorted(everyone, key=total.get)
     best = order[0]
-    ratio = total[order[1]] / max(1.0, total[best]) if len(order) > 1 else 9.9
-    return best, total[best], ratio
+    if len(order) < 2:
+        return best, total[best], 9.9, None
+    return best, total[best], total[order[1]] / max(1.0, total[best]), order[1]
+
+
+# A slot leaves its group when the group's item fits it this much worse than
+# the slot's own best match: the grouping (group_slots.py) compares grey
+# icons, and on 2026-11-20 put a new Ghost Costume with two Black Blazers,
+# both black. A slot the group decides right fits the group's item almost as
+# well as its own best.
+SPLIT = 1.25
+
+
+def split_group(slots, results):
+    """slots: one group's slots; results: lib.recognise() per slot. Returns
+    the slots in parts that show the same item: a slot whose own best match
+    fits it SPLIT times better than the group's item gets a part of its own
+    item, the rest stay together."""
+    def best_of(rs):
+        return [dict((i, e) for e, i in r) for r in rs]
+    rankings = best_of(results)
+    everyone = set().union(*rankings)
+    total = {i: sum(r.get(i, max(r.values())) for r in rankings) for i in everyone}
+    winner = min(everyone, key=total.get)
+    parts = {winner: []}
+    for s, r, res in zip(slots, rankings, results):
+        own_err, own = res[0]
+        if own != winner and r.get(winner, max(r.values())) > SPLIT * own_err:
+            parts.setdefault(own, []).append(s)
+        else:
+            parts[winner].append(s)
+    return [p for p in parts.values() if p]
 
 
 def slot_window(view_rgb, r, c):

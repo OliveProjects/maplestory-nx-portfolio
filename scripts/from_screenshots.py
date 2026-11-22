@@ -10,8 +10,10 @@ its own folder; the menu asks for that folder once.
 What it does:
   1. takes the day's screenshots from the folder (date in the name like the
      game's, or the file's date), oldest first
-  2. finds Item Inventory in each (any 16:9 resolution, scaled to 3840x2160),
-     keeps only those with the Deco tab selected, and cuts out the grid
+  2. finds Item Inventory in each, in any resolution and shape (16:9, 16:10,
+     4:3), measures how large the game drew it and scales the screenshot to
+     the size the grid was measured in; keeps only those with the Deco tab
+     selected, and cuts out the grid
   3. fits the screenshots together by comparing their rows, so a row that
      shows up in several screenshots counts once
   4. builds each row from all the screenshots it is in (a per-pixel median),
@@ -102,13 +104,62 @@ def cursor_pixels(img, x0, y0, cursor):
     return unknown if unknown.any() else None
 
 
+_SCALES = {}    # (width, height) -> the interface's size, measured once per resolution
+
+
+def ui_scale(whole, template):
+    """How large the game drew its interface in this screenshot, relative to
+    where the grid was measured (3840x2160, where the game draws it 2.75
+    times its own size), found by trying tab_template.png in many sizes.
+
+    The size follows the window's height, not its width, and never goes below
+    the game's own size: on 2026-11-22 a slot was 100 px apart at 3840x2160,
+    56 at 1920x1200 (16:10) and 37 at 1280x720, 1024x768 and 800x600. Scaling
+    every screenshot to 3840 px wide, as before, only fitted 16:9 from 1366x768
+    up. Returns (scale, match)."""
+    import cv2
+    h, w = whole.shape[:2]
+    # Coarse, on half the screenshot: from the game's own size (0.36) up to
+    # what the height allows.
+    small = cv2.resize(whole, None, fx=0.5, fy=0.5, interpolation=cv2.INTER_AREA)
+    best = (-1.0, None)
+    for r in np.arange(0.30, h / MEASURED[1] * 1.15 + 0.05, 0.02):
+        t = cv2.resize(template, None, fx=r / 2, fy=r / 2, interpolation=cv2.INTER_AREA)
+        if t.shape[0] < 8 or t.shape[0] > small.shape[0] or t.shape[1] > small.shape[1]:
+            continue
+        m = cv2.minMaxLoc(cv2.matchTemplate(small, t, cv2.TM_CCOEFF_NORMED))[1]
+        if m > best[0]:
+            best = (m, r)
+    if best[1] is None:
+        return None, 0.0
+    # Fine, on the whole screenshot, around the best coarse size.
+    coarse, best = best[1], (-1.0, None)
+    for r in np.arange(coarse - 0.024, coarse + 0.025, 0.004):
+        t = cv2.resize(template, None, fx=r, fy=r, interpolation=cv2.INTER_AREA if r < 1 else cv2.INTER_CUBIC)
+        if t.shape[0] > h or t.shape[1] > w:
+            continue
+        m = cv2.minMaxLoc(cv2.matchTemplate(whole, t, cv2.TM_CCOEFF_NORMED))[1]
+        if m > best[0]:
+            best = (m, r)
+    return best[1], best[0]
+
+
 def view_from_screenshot(path, template, cursor=None):
     """The Deco grid cut out of a screenshot (an array like a scanned view)
     and where the pointer covers it, or (None, None, why not)."""
     import cv2
     img = Image.open(path).convert("RGB")
-    if img.width != MEASURED[0]:
-        img = img.resize((MEASURED[0], round(img.height * MEASURED[0] / img.width)), Image.LANCZOS)
+    size = img.size
+    if size not in _SCALES:
+        scale, match = ui_scale(cv2.cvtColor(np.asarray(img), cv2.COLOR_RGB2BGR), template)
+        # A screenshot without the inventory gives no size; try the next one
+        # of that resolution.
+        if scale is None or match < 0.7:
+            return None, None, "no Item Inventory"
+        _SCALES[size] = scale
+    scale = _SCALES[size]
+    if abs(scale - 1) > 0.002:
+        img = img.resize((round(img.width / scale), round(img.height / scale)), Image.LANCZOS)
     whole = cv2.cvtColor(np.asarray(img), cv2.COLOR_RGB2BGR)
     res = cv2.matchTemplate(whole, template, cv2.TM_CCOEFF_NORMED)
     _, match, _, (x, y) = cv2.minMaxLoc(res)
@@ -125,12 +176,19 @@ def view_from_screenshot(path, template, cursor=None):
 
 
 def grey(view):
-    return np.asarray(Image.fromarray(view).convert("L"), dtype=np.float32)
+    """The view in grey, slightly blurred: screenshots in different
+    resolutions are scaled differently and have different JPEG noise, so the
+    same rows differ in sharpness. Unblurred, the same rows in 10 resolutions
+    differed by up to 11.0, over the limit (2026-11-22)."""
+    import cv2
+    g = np.asarray(Image.fromarray(view).convert("L"), dtype=np.float32)
+    return cv2.GaussianBlur(g, (0, 0), 2)
 
 
-# Measured 2026-11-18 on 11 screenshots: views that overlap fit with a mean
-# grey difference of 0-6, views that don't of 17 or more.
-FITS = 10.0
+# Measured 2026-11-22, blurred as in grey(): a view's best overlapping
+# neighbour fits at 0.1-0.9 in one resolution (11 screenshots, 18 Nov) and at
+# most 3.4 across 10 resolutions; views that don't overlap at 14.5 or more.
+FITS = 8.0
 
 
 def fit(a, b):

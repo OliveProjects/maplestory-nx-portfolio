@@ -10,7 +10,7 @@ inventory 2.75 times enlarged). The grid sizes below (X0, DX, Y0, DY, CELL),
 tab_template.png, DECO_TAB and SCALE in icon_match.py belong to that
 resolution. In another resolution the script stops at once instead of
 pointing at the wrong places; re-measure the sizes, read your own
-screenshots (from_screenshots.py, any 16:9 resolution) or write the
+screenshots (from_screenshots.py, any resolution) or write the
 inventory by hand (sync.py --list, see the README).
 
   python scan_inventory.py <out folder> [--no-hover]

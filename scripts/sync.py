@@ -118,36 +118,59 @@ def recognise(folder):
     if not os.path.exists(os.path.join(HERE, "icon_library.npz")):
         stop("icon_library.npz is missing: run python icon_library.py first.")
     progress("Loading the game's icons ...")
-    from icon_match import IconLibrary, recognise_group, slots
+    from icon_match import IconLibrary, recognise_group, slots, split_group
     from group_slots import groups
     lib = IconLibrary()
     progress("Grouping the slots by icon ...")
     windows = {(g, c): f for g, c, f in slots(folder)}
-    found, uncertain = {}, []
+    uncertain = []
     deco = read_deco()
     before = {f["id"] for f in deco["items"]} if deco else set()
+
+    def owned(i):
+        """The item, or its pixel twin, that the last sync had; else None."""
+        known = [t for t in lib.twins.get(i, [i]) if str(lib.ids[t]) in before]
+        return known[0] if len(known) == 1 else None
+
+    # Each slot is recognised on its own first, so that a group whose slots
+    # clearly show different items can be split (split_group).
     everything = list(groups(folder))
+    parts = []
     for nr, grp in enumerate(everything, 1):
         progress("Recognising kind %d of %d ..." % (nr, len(everything)))
-        i, error, ratio = recognise_group(lib, [windows[rc] for rc in grp["slots"]])
+        results = {s: lib.recognise(windows[s]) for s in grp["slots"]}
+        for part in split_group(grp["slots"], [results[s] for s in grp["slots"]]):
+            parts.append((part, [results[s] for s in part]))
+    entries = []   # (first slot, id, name, category, count), sorted into the inventory's order below
+    for part, results in parts:
+        i, error, ratio, second = recognise_group(lib, None, results=results)
+        where = "%d from row %d" % (len(part), part[0][0])
+        # Two items that look nearly alike (Dollish Pink and Orange Blush,
+        # ratio 1.01 on 2026-11-20): if only one of them was in the last
+        # sync, it is that one. The change list shows it before publishing.
+        if ratio < SAFE_RATIO and second is not None:
+            mine = [x for x in (owned(i), owned(second)) if x is not None]
+            if len(mine) == 1:
+                i, ratio = mine[0], SAFE_RATIO
         # The same icon on several items (White and Blue Label Ring): the one
         # already in the inventory, otherwise the picture can't settle it.
-        twins = lib.twins[i]
+        twins = lib.twins[lib.representative[i]]
         if len(twins) > 1:
-            known = [t for t in twins if str(lib.ids[t]) in before]
-            if len(known) != 1:
-                uncertain.append("%d from row %d: same icon as %s; write it in my_items.txt with the id"
-                                 % (len(grp["slots"]), grp["slots"][0][0],
-                                    ", ".join("%s (%s)" % (lib.names[t], lib.ids[t]) for t in twins)))
+            known = owned(i)
+            if known is None:
+                uncertain.append("%s: same icon as %s; write it in my_items.txt with the id"
+                                 % (where, ", ".join("%s (%s)" % (lib.names[t], lib.ids[t]) for t in twins)))
                 continue
-            i = known[0]
+            i = known
         iid, name, category = str(lib.ids[i]), str(lib.names[i]), str(lib.categories[i])
         if ratio < SAFE_RATIO:
-            uncertain.append("%d from row %d: probably %s (%s), ratio %.2f"
-                             % (len(grp["slots"]), grp["slots"][0][0], name, iid, ratio))
+            uncertain.append("%s: probably %s (%s), ratio %.2f" % (where, name, iid, ratio))
             continue
+        entries.append((part[0], iid, name, category, len(part)))
+    found = {}
+    for _, iid, name, category, n in sorted(entries):
         n0, k0, c0 = found.get(iid, (name, category, 0))
-        found[iid] = (n0, k0, c0 + len(grp["slots"]))
+        found[iid] = (n0, k0, c0 + n)
     progress("")
     sys.__stdout__.write("\r")
     print("  Done in %d seconds." % round(time.time() - start))

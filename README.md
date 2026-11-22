@@ -36,7 +36,7 @@ You only need a GitHub account and your own API key. No server: GitHub runs the 
 - **Git** ([git-scm.com](https://git-scm.com/downloads)).
 - **A GitHub account** and the **GitHub CLI** ([cli.github.com](https://cli.github.com)). After installing, run `gh auth login` once and log in.
 - **Your own API key from maplestory.market**, see below. It is free and allows 6 calls an hour.
-- Optional: the game in 3840×2160 if the inventory should be read from the screen. Otherwise you write a list, which works in any resolution.
+- Optional: the game in 3840×2160 if the script should scroll through the inventory itself. Your own screenshots work in any resolution, and so does a list.
 
 ## 1. The API key
 
@@ -81,7 +81,9 @@ The script finds the inventory wherever it sits in the window and scrolls throug
 2. Scroll down yourself and press Print Screen again, so that each screenshot shows at least one row from another one. Go on to the bottom of the tab.
 3. Double-click `Sync.bat` and pick **2**. The first time it asks where the game saves its screenshots (the folder with `Maple_YYMMDD_HHMMSS.jpg`; it suggests the game's usual folder) and remembers it.
 
-The script reads the day's screenshots in that folder, skips the ones of other tabs, finds the inventory in each (any 16:9 resolution), and fits them together by their rows, so a row in several screenshots counts once. Where a row is in several screenshots, each pixel is the median of them, so a tooltip in one screenshot goes away; the game's mouse pointer is found and left out too. Tested 2026-11-18 on 17 screenshots in two rounds, scrolled back and forth: 112 items in 47 kinds, the same as the scan.
+The script reads the day's screenshots in that folder, skips the ones of other tabs, finds the inventory in each, and fits them together by their rows, so a row in several screenshots counts once. Where a row is in several screenshots, each pixel is the median of them, so a tooltip in one screenshot goes away; the game's mouse pointer is found and left out too. Tested 2026-11-18 on 17 screenshots in two rounds, scrolled back and forth: 112 items in 47 kinds, the same as the scan.
+
+Any resolution works, 16:9, 16:10 or 4:3. The game draws its interface larger the taller the window is (but never below its own size, which it uses from 768 pixels high and down), so the script measures how large the inventory is in each screenshot instead of assuming it. Tested 2026-11-22 on ten resolutions from 3840×2160 to 800×600, including 2560×1600, 1920×1200 and 1024×768: every slot was recognised right in all ten, and the ten screenshots fitted together with each other. The higher the resolution, the larger the margin to the second-best match, so use a high one if you can.
 
 **From a list** (always works):
 1. Write your inventory in `my_items.txt`, one line per kind with the count and the name as the game writes it:
@@ -178,6 +180,7 @@ The main scripts:
 ## If something goes wrong
 
 - **"the game's client area is … but the grid is measured in 3840x2160":** use your own screenshots or the list (`Sync.bat`, options 2 and 3), or re-measure the sizes at the top of `scan_inventory.py`, `tab_template.png` and `SCALE` in `icon_match.py`.
+- **A new item counted as one you already have:** the sync checks each slot on its own and splits a group whose slots clearly show different items, and when two items look nearly alike it picks the one you already own. Both show in the change list before anything is published, so read it.
 - **"Could not be recognised with certainty":** nothing was published. Use the list, or run again with the inventory fully visible. The scan's views are kept in `last_scan/` (`view_00.png`, `view_06.png` …) so you can look at them.
 - **"the game is no longer in front, stopping":** another window came on top. Keep the game in front and don't touch the mouse.
 - **The page has no prices after a day:** open the Actions tab. "The secret MAPLESTORY_MARKET_KEY is missing" means the key was not stored: add it under Settings → Secrets and variables → Actions. A red run shows its error there.
